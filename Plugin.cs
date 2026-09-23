@@ -6,7 +6,7 @@ namespace GK2CraftMax
     [BepInPlugin(
         "de.w00dst0ckOo.gk2.craftmax",
         "Graveyard Keeper 2 - Craft Max",
-        "0.1.0"
+        "0.2.0"
     )]
     public class Plugin : BaseUnityPlugin
     {
@@ -14,7 +14,7 @@ namespace GK2CraftMax
 
         private void Awake()
         {
-            Logger.LogInfo("GK2 Craft Max 0.1.0 loading...");
+            Logger.LogInfo("GK2 Craft Max 0.2.0 loading...");
 
             _harmony = new Harmony(
                 "de.w00dst0ckOo.gk2.craftmax"
