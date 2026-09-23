@@ -3,58 +3,111 @@ using HarmonyLib;
 using LazyBearTechnology;
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace GK2CraftMax.Patches
 {
-    [HarmonyPatch(typeof(UICraftSelectionWindow))]
-    internal static class CraftMaxPatch
+    // Normales Crafting-Fenster
+    [HarmonyPatch(typeof(UICraftSelectionWindow), "Redraw")]
+    internal static class CraftSelectionWindowPatch
     {
-        private const string MaxButtonName = "GK2CraftMax_Button";
-
         [HarmonyPostfix]
-        [HarmonyPatch("Redraw")]
-        private static void RedrawPostfix(UICraftSelectionWindow __instance)
+        private static void Postfix(
+            UICraftSelectionWindow __instance)
         {
-            if (__instance == null)
+            CraftMaxHelper.HandleRedraw(__instance);
+        }
+    }
+
+
+    // Fuel-Crafting, z.B. Feuerholzschuppen
+    [HarmonyPatch(typeof(UIFuelCraftWindow), "Redraw")]
+    internal static class FuelCraftWindowPatch
+    {
+        [HarmonyPostfix]
+        private static void Postfix(
+            UIFuelCraftWindow __instance)
+        {
+            CraftMaxHelper.HandleRedraw(__instance);
+        }
+    }
+
+
+    internal static class CraftMaxHelper
+    {
+        private const string MaxButtonName =
+            "GK2CraftMax_Button";
+
+
+        internal static void HandleRedraw(
+            UIBaseCraftSelectionWindow window)
+        {
+            if (window == null)
                 return;
 
             UIBaseCraftSelectionWindowData data =
-                Traverse.Create(__instance)
+                Traverse.Create(window)
                     .Field("data")
                     .GetValue<UIBaseCraftSelectionWindowData>();
 
             if (data == null ||
-                data.CraftDefinition == null ||
+                data.CraftDefinition == null)
+            {
+                SetMaxButtonActive(window, false);
+                return;
+            }
+
+            /*
+             * Bei normalen Craft-Fenstern respektieren wir
+             * IsMultipleCraftsDisabled.
+             *
+             * UIFuelCraftWindow hat eigene Logik für die
+             * Mengensteuerung und wird deshalb separat behandelt.
+             */
+            if (!(window is UIFuelCraftWindow) &&
                 data.CraftDefinition.IsMultipleCraftsDisabled)
             {
-                SetMaxButtonActive(__instance, false);
+                SetMaxButtonActive(window, false);
                 return;
             }
 
             LazyButton plusButton =
-                Traverse.Create(__instance)
+                Traverse.Create(window)
                     .Field("plusCraftButton")
                     .GetValue<LazyButton>();
 
             if (plusButton == null)
                 return;
 
-            LazyButton maxButton = GetOrCreateMaxButton(
-                __instance,
-                plusButton
-            );
+            LazyButton maxButton =
+                GetOrCreateMaxButton(
+                    window,
+                    plusButton
+                );
+
+            if (maxButton == null)
+                return;
 
             maxButton.gameObject.SetActive(true);
+
         }
 
+
         private static LazyButton GetOrCreateMaxButton(
-            UICraftSelectionWindow window,
+            UIBaseCraftSelectionWindow window,
             LazyButton plusButton)
         {
-            Transform parent = plusButton.transform.parent;
+            Transform parent =
+                plusButton.transform.parent;
 
-            Transform existing = parent.Find(MaxButtonName);
+            if (parent == null)
+                return null;
+
+            /*
+             * Falls MAX bereits existiert, verwenden wir
+             * denselben Button wieder.
+             */
+            Transform existing =
+                parent.Find(MaxButtonName);
 
             if (existing != null)
             {
@@ -62,41 +115,73 @@ namespace GK2CraftMax.Patches
                     existing.GetComponent<LazyButton>();
 
                 if (existingButton != null)
+                {
                     return existingButton;
+                }
             }
 
-            GameObject obj = UnityEngine.Object.Instantiate(
-                plusButton.gameObject,
-                parent
-            );
+            /*
+             * Vanilla-Plus-Button klonen.
+             */
+            GameObject obj =
+                UnityEngine.Object.Instantiate(
+                    plusButton.gameObject,
+                    parent
+                );
 
-            Transform icon = obj.transform.Find("Content/Icon");
+            obj.name = MaxButtonName;
+
+            /*
+             * Nur das Plus-Icon verstecken.
+             * Der Vanilla-Hintergrund bleibt erhalten.
+             */
+            Transform icon =
+                obj.transform.Find("Content/Icon");
 
             if (icon != null)
             {
                 icon.gameObject.SetActive(false);
             }
-            
 
             LazyButton maxButton =
                 obj.GetComponent<LazyButton>();
 
-            // Listener des geklonten "+"-Buttons entfernen.
+            if (maxButton == null)
+            {
+
+                UnityEngine.Object.Destroy(obj);
+                return null;
+            }
+
+            /*
+             * Listener des geklonten Plus-Buttons entfernen.
+             */
             maxButton.onClick.RemoveAllListeners();
 
-            // Position zunächst rechts neben dem Plus-Button.
+
+            /*
+             * MAX rechts neben den Plus-Button setzen.
+             */
             RectTransform plusRect =
                 plusButton.transform as RectTransform;
 
             RectTransform maxRect =
                 obj.transform as RectTransform;
 
-            if (plusRect != null && maxRect != null)
+            if (plusRect != null &&
+                maxRect != null)
             {
-                maxRect.anchorMin = plusRect.anchorMin;
-                maxRect.anchorMax = plusRect.anchorMax;
-                maxRect.pivot = plusRect.pivot;
-                maxRect.sizeDelta = plusRect.sizeDelta;
+                maxRect.anchorMin =
+                    plusRect.anchorMin;
+
+                maxRect.anchorMax =
+                    plusRect.anchorMax;
+
+                maxRect.pivot =
+                    plusRect.pivot;
+
+                maxRect.sizeDelta =
+                    plusRect.sizeDelta;
 
                 maxRect.anchoredPosition =
                     plusRect.anchoredPosition +
@@ -104,16 +189,19 @@ namespace GK2CraftMax.Patches
                         plusRect.rect.width + 10f,
                         0f
                     );
+
             }
 
 
-
-            // Eigenes Text-Label erzeugen.
-            GameObject labelObject = new GameObject(
-                "GK2CraftMax_Label",
-                typeof(RectTransform),
-                typeof(TextMeshProUGUI)
-            );
+            /*
+             * Eigenes MAX-Label.
+             */
+            GameObject labelObject =
+                new GameObject(
+                    "GK2CraftMax_Label",
+                    typeof(RectTransform),
+                    typeof(TextMeshProUGUI)
+                );
 
             labelObject.transform.SetParent(
                 obj.transform,
@@ -123,25 +211,46 @@ namespace GK2CraftMax.Patches
             RectTransform labelRect =
                 labelObject.GetComponent<RectTransform>();
 
-            labelRect.anchorMin = Vector2.zero;
-            labelRect.anchorMax = Vector2.one;
-            labelRect.offsetMin = Vector2.zero;
-            labelRect.offsetMax = Vector2.zero;
+            labelRect.anchorMin =
+                Vector2.zero;
+
+            labelRect.anchorMax =
+                Vector2.one;
+
+            labelRect.offsetMin =
+                Vector2.zero;
+
+            labelRect.offsetMax =
+                Vector2.zero;
+
+            labelRect.anchoredPosition =
+                new Vector2(0f, -2f);
+
 
             TextMeshProUGUI label =
                 labelObject.GetComponent<TextMeshProUGUI>();
 
             label.text = "MAX";
-            label.alignment = TextAlignmentOptions.Center;
+
+            label.alignment =
+                TextAlignmentOptions.Center;
+
             label.fontSize = 18f;
+
             label.raycastTarget = false;
 
-            // Gelb/Orange ähnlich der Vanilla-UI
-            label.color = new Color32(255, 210, 45, 255);
+            label.color =
+                new Color32(
+                    255,
+                    210,
+                    45,
+                    255
+                );
 
-            // Etwas nach unten
-            labelRect.anchoredPosition = new Vector2(0f, -2f);
 
+            /*
+             * Unser eigener Click-Handler.
+             */
             maxButton.onClick.AddListener(
                 () => SetMaximumCraftCount(window)
             );
@@ -149,31 +258,43 @@ namespace GK2CraftMax.Patches
             return maxButton;
         }
 
+
         private static void SetMaximumCraftCount(
-            UICraftSelectionWindow window)
+            UIBaseCraftSelectionWindow window)
         {
             UIBaseCraftSelectionWindowData data =
                 Traverse.Create(window)
                     .Field("data")
                     .GetValue<UIBaseCraftSelectionWindowData>();
 
-            if (data == null ||
-                data.CraftItemCellsData == null ||
-                data.CraftItemCellsData.Count == 0)
+            if (data == null)
                 return;
+
+            if (data.CraftItemCellsData == null ||
+                data.CraftItemCellsData.Count == 0)
+            {
+                return;
+            }
 
             int maximum = 999;
 
+            /*
+            * Maximale Anzahl anhand der verfügbaren Zutaten.
+            */
             foreach (UICraftItemCellData cell
-                     in data.CraftItemCellsData)
+                    in data.CraftItemCellsData)
             {
                 if (cell == null ||
                     cell.currentItem == null ||
                     cell.MultiInventory == null)
+                {
                     continue;
+                }
 
                 int required =
-                    cell.currentItem.GetCount(data.WgoData);
+                    cell.currentItem.GetCount(
+                        data.WgoData
+                    );
 
                 if (required <= 0)
                     continue;
@@ -186,34 +307,181 @@ namespace GK2CraftMax.Patches
                 int possible =
                     available / required;
 
-                maximum = Math.Min(maximum, possible);
+                maximum =
+                    Math.Min(
+                        maximum,
+                        possible
+                    );
             }
 
-            maximum = Math.Max(1, Math.Min(999, maximum));
+            /*
+            * Fuel-Crafting:
+            *
+            * Zusätzlich zum Zutatenlimit darf nur so viel
+            * hergestellt werden, wie noch in den Fuel-Container passt.
+            *
+            * Vanilla berechnet die Kapazität als:
+            *
+            * emptyCellStackCount * InventorySize
+            */
+            if (window is UIFuelCraftWindow &&
+                data.CraftDefinition != null &&
+                data.CraftDefinition.isFuelCraft &&
+                data.WgoData != null &&
+                data.WgoData.Definition != null &&
+                data.WgoData.Inventory != null &&
+                data.WgoData.Inventory.Data != null)
+            {
+                ItemDef fuelItemDef =
+                    data.CraftDefinition.FuelItemDef;
 
-            int delta = maximum - data.CraftsCount;
+                OutputPreview outputPreview =
+                    data.CraftDefinition.GetOutputPreview(
+                        data.WgoData
+                    );
+
+                if (fuelItemDef != null &&
+                    outputPreview != null &&
+                    outputPreview.count > 0)
+                {
+                    int currentFuel =
+                        data.WgoData.Inventory.Data
+                            .GetTotalCountInInventory(
+                                fuelItemDef.id
+                            );
+
+                    int capacity =
+                        data.WgoData.Definition.emptyCellStackCount *
+                        data.WgoData.Inventory.Data.InventorySize;
+
+                    int remainingCapacity =
+                        Math.Max(
+                            0,
+                            capacity - currentFuel
+                        );
+
+                    int fuelPerCraft =
+                        outputPreview.count;
+
+                    /*
+                    * Aufrunden ist gewollt.
+                    *
+                    * Beispiel:
+                    *
+                    * 500 Kapazität
+                    * 290 vorhanden
+                    * 210 frei
+                    * 20 Fuel pro Craft
+                    *
+                    * 210 / 20 = 10,5
+                    * => 11 Crafts
+                    */
+                    int fuelMaximum =
+                        remainingCapacity > 0
+                            ? remainingCapacity / fuelPerCraft
+                            : 0;
+
+                    maximum =
+                        Math.Min(
+                            maximum,
+                            fuelMaximum
+                        );
+                }
+            }
+
+            /*
+            * Normale Crafts beginnen bei mindestens 1.
+            *
+            * Fuel darf 0 ergeben, wenn der Container
+            * bereits vollständig gefüllt ist.
+            */
+            if (window is UIFuelCraftWindow)
+            {
+                maximum =
+                    Math.Max(
+                        0,
+                        Math.Min(
+                            999,
+                            maximum
+                        )
+                    );
+            }
+            else
+            {
+                maximum =
+                    Math.Max(
+                        1,
+                        Math.Min(
+                            999,
+                            maximum
+                        )
+                    );
+            }
+
+            /*
+            * Ist der Fuel-Container bereits voll,
+            * verändern wir die Auswahl nicht.
+            */
+            if (window is UIFuelCraftWindow &&
+                maximum <= 0)
+            {
+
+                return;
+            }
+
+            /*
+            * Differenz zur aktuell gewählten Menge.
+            */
+
+            if (window is UIFuelCraftWindow)
+            {
+
+                for (int i = 0; i < data.CraftQueue.Count; i++)
+                {
+                    CraftElementBase element =
+                        data.CraftQueue[i];
+
+                }
+            }
+
+            int delta =
+                maximum - data.CraftsCount;
 
             if (delta == 0)
                 return;
 
-            // Vanilla-Methode benutzen, damit Counter,
-            // Requirements und Buttons korrekt aktualisiert werden.
+            /*
+            * Vanillas ChangeCraftCount verwenden.
+            *
+            * Bei UIFuelCraftWindow wird dadurch dessen
+            * eigene Queue-Logik verwendet.
+            */
             Traverse.Create(window)
-                .Method("ChangeCraftCount", delta)
+                .Method(
+                    "ChangeCraftCount",
+                    delta
+                )
                 .GetValue();
         }
 
+
         private static void SetMaxButtonActive(
-            UICraftSelectionWindow window,
+            UIBaseCraftSelectionWindow window,
             bool active)
         {
+            if (window == null)
+                return;
+
             LazyButton plusButton =
                 Traverse.Create(window)
                     .Field("plusCraftButton")
                     .GetValue<LazyButton>();
 
-            if (plusButton == null)
+            if (plusButton == null ||
+                plusButton.transform.parent == null)
+            {
                 return;
+            }
 
             Transform existing =
                 plusButton.transform.parent.Find(
@@ -221,22 +489,35 @@ namespace GK2CraftMax.Patches
                 );
 
             if (existing != null)
-                existing.gameObject.SetActive(active);
+            {
+                existing.gameObject.SetActive(
+                    active
+                );
+            }
         }
 
-        private static string GetPath(Transform transform)
+
+        private static string GetPath(
+            Transform transform)
         {
-            string path = transform.name;
+            if (transform == null)
+                return "NULL";
+
+            string path =
+                transform.name;
 
             while (transform.parent != null)
             {
-                transform = transform.parent;
-                path = transform.name + "/" + path;
+                transform =
+                    transform.parent;
+
+                path =
+                    transform.name +
+                    "/" +
+                    path;
             }
 
             return path;
         }
     }
-
-
 }
