@@ -6,37 +6,29 @@ using UnityEngine;
 
 namespace GK2CraftMax.Patches
 {
-    // Normales Crafting-Fenster
     [HarmonyPatch(typeof(UICraftSelectionWindow), "Redraw")]
     internal static class CraftSelectionWindowPatch
     {
         [HarmonyPostfix]
-        private static void Postfix(
-            UICraftSelectionWindow __instance)
+        private static void Postfix(UICraftSelectionWindow __instance)
         {
             CraftMaxHelper.HandleRedraw(__instance);
         }
     }
 
-
-    // Fuel-Crafting, z.B. Feuerholzschuppen
     [HarmonyPatch(typeof(UIFuelCraftWindow), "Redraw")]
     internal static class FuelCraftWindowPatch
     {
         [HarmonyPostfix]
-        private static void Postfix(
-            UIFuelCraftWindow __instance)
+        private static void Postfix(UIFuelCraftWindow __instance)
         {
             CraftMaxHelper.HandleRedraw(__instance);
         }
     }
 
-
     internal static class CraftMaxHelper
     {
-        private const string MaxButtonName =
-            "GK2CraftMax_Button";
-
+        internal const string MaxButtonName = "GK2CraftMax_Button";
 
         internal static void HandleRedraw(
             UIBaseCraftSelectionWindow window)
@@ -57,11 +49,10 @@ namespace GK2CraftMax.Patches
             }
 
             /*
-             * Bei normalen Craft-Fenstern respektieren wir
-             * IsMultipleCraftsDisabled.
+             * Normale Crafts dürfen MAX nur bekommen,
+             * wenn Vanilla mehrere Crafts erlaubt.
              *
-             * UIFuelCraftWindow hat eigene Logik für die
-             * Mengensteuerung und wird deshalb separat behandelt.
+             * Fuel-Crafting wird separat behandelt.
              */
             if (!(window is UIFuelCraftWindow) &&
                 data.CraftDefinition.IsMultipleCraftsDisabled)
@@ -89,8 +80,12 @@ namespace GK2CraftMax.Patches
 
             maxButton.gameObject.SetActive(true);
 
+            SetupGamepadNavigation(
+                window,
+                plusButton,
+                maxButton
+            );
         }
-
 
         private static LazyButton GetOrCreateMaxButton(
             UIBaseCraftSelectionWindow window,
@@ -102,10 +97,6 @@ namespace GK2CraftMax.Patches
             if (parent == null)
                 return null;
 
-            /*
-             * Falls MAX bereits existiert, verwenden wir
-             * denselben Button wieder.
-             */
             Transform existing =
                 parent.Find(MaxButtonName);
 
@@ -115,14 +106,9 @@ namespace GK2CraftMax.Patches
                     existing.GetComponent<LazyButton>();
 
                 if (existingButton != null)
-                {
                     return existingButton;
-                }
             }
 
-            /*
-             * Vanilla-Plus-Button klonen.
-             */
             GameObject obj =
                 UnityEngine.Object.Instantiate(
                     plusButton.gameObject,
@@ -132,35 +118,32 @@ namespace GK2CraftMax.Patches
             obj.name = MaxButtonName;
 
             /*
-             * Nur das Plus-Icon verstecken.
-             * Der Vanilla-Hintergrund bleibt erhalten.
+             * Plus-Icon des geklonten Buttons
+             * ausblenden.
              */
             Transform icon =
                 obj.transform.Find("Content/Icon");
 
             if (icon != null)
-            {
                 icon.gameObject.SetActive(false);
-            }
 
             LazyButton maxButton =
                 obj.GetComponent<LazyButton>();
 
             if (maxButton == null)
             {
-
                 UnityEngine.Object.Destroy(obj);
                 return null;
             }
 
             /*
-             * Listener des geklonten Plus-Buttons entfernen.
+             * Vanilla-Listener des geklonten
+             * Plus-Buttons entfernen.
              */
             maxButton.onClick.RemoveAllListeners();
 
-
             /*
-             * MAX rechts neben den Plus-Button setzen.
+             * MAX rechts neben + positionieren.
              */
             RectTransform plusRect =
                 plusButton.transform as RectTransform;
@@ -189,12 +172,10 @@ namespace GK2CraftMax.Patches
                         plusRect.rect.width + 10f,
                         0f
                     );
-
             }
 
-
             /*
-             * Eigenes MAX-Label.
+             * MAX-Beschriftung erzeugen.
              */
             GameObject labelObject =
                 new GameObject(
@@ -226,7 +207,6 @@ namespace GK2CraftMax.Patches
             labelRect.anchoredPosition =
                 new Vector2(0f, -2f);
 
-
             TextMeshProUGUI label =
                 labelObject.GetComponent<TextMeshProUGUI>();
 
@@ -247,17 +227,255 @@ namespace GK2CraftMax.Patches
                     255
                 );
 
-
             /*
-             * Unser eigener Click-Handler.
+             * EIN gemeinsamer MAX-Pfad.
+             *
+             * Maus und Controller landen beide
+             * letztlich hier.
              */
             maxButton.onClick.AddListener(
-                () => SetMaximumCraftCount(window)
+                () =>
+                {
+                    SetMaximumCraftCount(window);
+                }
             );
 
+            /*
+             * WICHTIG:
+             *
+             * Kein SyncOnSelectWithButton().
+             *
+             * Den A-Button behandeln wir zentral
+             * über OnStartCraft.
+             *
+             * Dadurch kann A nicht gleichzeitig
+             * MAX und Place auslösen.
+             */
             return maxButton;
         }
 
+        private static void SetupGamepadNavigation(
+            UIBaseCraftSelectionWindow window,
+            LazyButton plusButton,
+            LazyButton maxButton)
+        {
+            if (!LazyInput.IsGamepadActive)
+                return;
+
+            GamepadNavigationController controller =
+                Traverse.Create(window)
+                    .Property("GamepadNavigationController")
+                    .GetValue<GamepadNavigationController>();
+
+            if (controller == null)
+                return;
+
+            GamepadNavigationItem plusNav =
+                plusButton.GetComponent<GamepadNavigationItem>();
+
+            GamepadNavigationItem maxNav =
+                maxButton.GetComponent<GamepadNavigationItem>();
+
+            if (plusNav == null ||
+                maxNav == null)
+            {
+                return;
+            }
+
+            maxNav.Active = true;
+            maxNav.enabled = true;
+
+            var selectableItems =
+                Traverse.Create(controller)
+                    .Field("selectableItems")
+                    .GetValue<
+                        System.Collections.Generic
+                            .List<GamepadNavigationItem>
+                    >();
+
+            if (selectableItems == null)
+                return;
+
+            /*
+             * Kein ReinitItems().
+             *
+             * MAX wird direkt in die bereits
+             * initialisierte Vanilla-Liste
+             * aufgenommen.
+             */
+            if (!selectableItems.Contains(maxNav))
+            {
+                selectableItems.Add(maxNav);
+
+                maxNav.Init(
+                    selectableItems.Count - 1,
+                    controller,
+                    window.transform.lossyScale.x
+                );
+            }
+
+            /*
+             * Fuel verwendet Navigationsgruppe 1.
+             *
+             * Dort suchen wir das am weitesten
+             * rechts liegende Vanilla-Item.
+             */
+            if (window is UIFuelCraftWindow)
+            {
+                GamepadNavigationItem rightItem = null;
+
+                foreach (
+                    GamepadNavigationItem item
+                    in selectableItems)
+                {
+                    if (item == null ||
+                        item == maxNav ||
+                        !item.Active ||
+                        !item.isActiveAndEnabled ||
+                        item.group != 1)
+                    {
+                        continue;
+                    }
+
+                    if (rightItem == null ||
+                        item.Pos.x > rightItem.Pos.x)
+                    {
+                        rightItem = item;
+                    }
+                }
+
+                if (rightItem != null)
+                {
+                    maxNav.group =
+                        rightItem.group;
+
+                    rightItem.SetCustomDirectionItem(
+                        GUIDirection.Right,
+                        maxNav
+                    );
+
+                    maxNav.SetCustomDirectionItem(
+                        GUIDirection.Left,
+                        rightItem
+                    );
+                }
+            }
+            else
+            {
+                GamepadNavigationItem focused =
+                    controller.FocusedItem;
+
+                if (focused != null)
+                {
+                    int activeGroup = focused.group;
+
+                    GamepadNavigationItem rightItem = null;
+
+                    foreach (GamepadNavigationItem item in selectableItems)
+                    {
+                        if (item == null ||
+                            item == maxNav ||
+                            !item.Active ||
+                            !item.isActiveAndEnabled ||
+                            item.group != activeGroup)
+                        {
+                            continue;
+                        }
+
+                        if (rightItem == null ||
+                            item.Pos.x > rightItem.Pos.x)
+                        {
+                            rightItem = item;
+                        }
+                    }
+
+                    if (rightItem != null)
+                    {
+                        maxNav.group = activeGroup;
+
+                        rightItem.SetCustomDirectionItem(
+                            GUIDirection.Right,
+                            maxNav
+
+                        );
+
+                        maxNav.SetCustomDirectionItem(
+                            GUIDirection.Left,
+                            rightItem
+                        );
+                    }
+                }
+            }
+        }
+
+
+        /*
+         * Wird vom OnStartCraft-Patch benutzt.
+         *
+         * true:
+         * MAX ist fokussiert und wurde ausgeführt.
+         *
+         * false:
+         * MAX ist nicht fokussiert.
+         * Vanilla darf normal craften/place ausführen.
+         */
+        internal static bool TryActivateFocusedMax(
+            UIBaseCraftSelectionWindow window)
+        {
+            if (window == null ||
+                !LazyInput.IsGamepadActive)
+            {
+                return false;
+            }
+
+            GamepadNavigationController controller =
+                Traverse.Create(window)
+                    .Property("GamepadNavigationController")
+                    .GetValue<GamepadNavigationController>();
+
+            if (controller == null)
+                return false;
+
+            GamepadNavigationItem focused =
+                controller.FocusedItem;
+
+            if (focused == null ||
+                focused.gameObject == null ||
+                focused.gameObject.name != MaxButtonName)
+            {
+                return false;
+            }
+
+            LazyButton maxButton =
+                focused.GetComponent<LazyButton>();
+
+            if (maxButton == null)
+            {
+
+                return false;
+            }
+
+            /*
+             * Exakt denselben onClick ausführen,
+             * den auch die Maus benutzt.
+             */
+            maxButton.onClick.Invoke();
+
+            LazyButton startCraftButton =
+                Traverse.Create(window)
+                    .Field("startCraftButton")
+                    .GetValue<LazyButton>();
+
+            if (startCraftButton != null &&
+                startCraftButton.interactable)
+            {
+                Traverse.Create(window)
+                    .Method("OnStartCraftPressed")
+                    .GetValue();
+            }
+
+            return true;
+        }
 
         private static void SetMaximumCraftCount(
             UIBaseCraftSelectionWindow window)
@@ -279,10 +497,12 @@ namespace GK2CraftMax.Patches
             int maximum = 999;
 
             /*
-            * Maximale Anzahl anhand der verfügbaren Zutaten.
-            */
-            foreach (UICraftItemCellData cell
-                    in data.CraftItemCellsData)
+             * Maximale Anzahl anhand der
+             * vorhandenen Zutaten bestimmen.
+             */
+            foreach (
+                UICraftItemCellData cell
+                in data.CraftItemCellsData)
             {
                 if (cell == null ||
                     cell.currentItem == null ||
@@ -300,9 +520,10 @@ namespace GK2CraftMax.Patches
                     continue;
 
                 int available =
-                    cell.MultiInventory.GetTotalCount(
-                        cell.currentItem.Id
-                    );
+                    cell.MultiInventory
+                        .GetTotalCount(
+                            cell.currentItem.Id
+                        );
 
                 int possible =
                     available / required;
@@ -315,15 +536,12 @@ namespace GK2CraftMax.Patches
             }
 
             /*
-            * Fuel-Crafting:
-            *
-            * Zusätzlich zum Zutatenlimit darf nur so viel
-            * hergestellt werden, wie noch in den Fuel-Container passt.
-            *
-            * Vanilla berechnet die Kapazität als:
-            *
-            * emptyCellStackCount * InventorySize
-            */
+             * Fuel-Crafting:
+             *
+             * Zusätzlich prüfen, wie viel
+             * Platz noch im Fuel-Container
+             * vorhanden ist.
+             */
             if (window is UIFuelCraftWindow &&
                 data.CraftDefinition != null &&
                 data.CraftDefinition.isFuelCraft &&
@@ -336,23 +554,32 @@ namespace GK2CraftMax.Patches
                     data.CraftDefinition.FuelItemDef;
 
                 OutputPreview outputPreview =
-                    data.CraftDefinition.GetOutputPreview(
-                        data.WgoData
-                    );
+                    data.CraftDefinition
+                        .GetOutputPreview(
+                            data.WgoData
+                        );
 
                 if (fuelItemDef != null &&
                     outputPreview != null &&
                     outputPreview.count > 0)
                 {
                     int currentFuel =
-                        data.WgoData.Inventory.Data
+                        data.WgoData
+                            .Inventory
+                            .Data
                             .GetTotalCountInInventory(
                                 fuelItemDef.id
                             );
 
                     int capacity =
-                        data.WgoData.Definition.emptyCellStackCount *
-                        data.WgoData.Inventory.Data.InventorySize;
+                        data.WgoData
+                            .Definition
+                            .emptyCellStackCount
+                        *
+                        data.WgoData
+                            .Inventory
+                            .Data
+                            .InventorySize;
 
                     int remainingCapacity =
                         Math.Max(
@@ -364,21 +591,15 @@ namespace GK2CraftMax.Patches
                         outputPreview.count;
 
                     /*
-                    * Aufrunden ist gewollt.
-                    *
-                    * Beispiel:
-                    *
-                    * 500 Kapazität
-                    * 290 vorhanden
-                    * 210 frei
-                    * 20 Fuel pro Craft
-                    *
-                    * 210 / 20 = 10,5
-                    * => 11 Crafts
-                    */
+                     * Bewusst Floor.
+                     *
+                     * 210 Platz / 20 Fuel
+                     * = 10 vollständige Crafts.
+                     */
                     int fuelMaximum =
                         remainingCapacity > 0
-                            ? remainingCapacity / fuelPerCraft
+                            ? remainingCapacity /
+                              fuelPerCraft
                             : 0;
 
                     maximum =
@@ -386,15 +607,10 @@ namespace GK2CraftMax.Patches
                             maximum,
                             fuelMaximum
                         );
+
                 }
             }
 
-            /*
-            * Normale Crafts beginnen bei mindestens 1.
-            *
-            * Fuel darf 0 ergeben, wenn der Container
-            * bereits vollständig gefüllt ist.
-            */
             if (window is UIFuelCraftWindow)
             {
                 maximum =
@@ -419,29 +635,13 @@ namespace GK2CraftMax.Patches
             }
 
             /*
-            * Ist der Fuel-Container bereits voll,
-            * verändern wir die Auswahl nicht.
-            */
+             * Kein vollständiger Fuel-Craft
+             * mehr möglich.
+             */
             if (window is UIFuelCraftWindow &&
                 maximum <= 0)
             {
-
                 return;
-            }
-
-            /*
-            * Differenz zur aktuell gewählten Menge.
-            */
-
-            if (window is UIFuelCraftWindow)
-            {
-
-                for (int i = 0; i < data.CraftQueue.Count; i++)
-                {
-                    CraftElementBase element =
-                        data.CraftQueue[i];
-
-                }
             }
 
             int delta =
@@ -451,11 +651,9 @@ namespace GK2CraftMax.Patches
                 return;
 
             /*
-            * Vanillas ChangeCraftCount verwenden.
-            *
-            * Bei UIFuelCraftWindow wird dadurch dessen
-            * eigene Queue-Logik verwendet.
-            */
+             * Normales Crafting bzw. vorhandene
+             * Fuel-Queue über Vanilla.
+             */
             Traverse.Create(window)
                 .Method(
                     "ChangeCraftCount",
@@ -463,7 +661,6 @@ namespace GK2CraftMax.Patches
                 )
                 .GetValue();
         }
-
 
         private static void SetMaxButtonActive(
             UIBaseCraftSelectionWindow window,
@@ -484,40 +681,60 @@ namespace GK2CraftMax.Patches
             }
 
             Transform existing =
-                plusButton.transform.parent.Find(
-                    MaxButtonName
-                );
+                plusButton.transform.parent
+                    .Find(MaxButtonName);
 
             if (existing != null)
             {
-                existing.gameObject.SetActive(
-                    active
-                );
+                existing.gameObject.SetActive(active);
             }
-        }
-
-
-        private static string GetPath(
-            Transform transform)
-        {
-            if (transform == null)
-                return "NULL";
-
-            string path =
-                transform.name;
-
-            while (transform.parent != null)
-            {
-                transform =
-                    transform.parent;
-
-                path =
-                    transform.name +
-                    "/" +
-                    path;
-            }
-
-            return path;
         }
     }
+
+    /*
+     * ZENTRALE A-BUTTON-LOGIK
+     *
+     * MAX fokussiert:
+     *     A -> MAX
+     *     Vanilla Craft/Place wird blockiert.
+     *
+     * MAX nicht fokussiert:
+     *     Vanilla OnStartCraft läuft unverändert.
+     */
+    [HarmonyPatch(
+        typeof(UIBaseCraftSelectionWindow),
+        "OnStartCraft"
+    )]
+    internal static class CraftMaxStartCraftPatch
+    {
+        [HarmonyPrefix]
+        private static bool Prefix(
+            UIBaseCraftSelectionWindow __instance,
+            ref bool __result)
+        {
+            if (!CraftMaxHelper.TryActivateFocusedMax(
+                    __instance))
+            {
+                /*
+                 * MAX nicht fokussiert.
+                 *
+                 * Vanilla:
+                 * OnStartCraftPressed()
+                 * -> Craft / Place
+                 */
+                return true;
+            }
+
+            /*
+             * MAX wurde ausgeführt.
+             *
+             * GameKey gilt als verarbeitet,
+             * aber das originale OnStartCraft()
+             * darf NICHT mehr laufen.
+             */
+            __result = true;
+
+            return false;
+        }
+    }    
 }
