@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <GameDir>C:\Path\To\Graveyard Keeper 2</GameDir>
+  </PropertyGroup>
+</Project>
