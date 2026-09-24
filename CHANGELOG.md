@@ -2,6 +2,20 @@
 
 All notable changes to **Graveyard Keeper 2 - Craft Max** are documented in this file.
 
+## [0.4.0]
+
+### Added
+
+- Study Table Science decomposition MAX button
+- Decompose all available items with one action
+- Full controller support for Science MAX
+- Controller navigation between item selection and MAX
+
+### Changed
+- Refactored shared MAX button creation
+- Refactored shared gamepad navigation code
+- Existing Craft and Fuel MAX behavior remains unchanged
+
 ## [0.3.0]
 
 ### Added

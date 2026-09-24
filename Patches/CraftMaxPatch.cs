@@ -1,7 +1,7 @@
 using System;
+using GK2CraftMax.Helpers;
 using HarmonyLib;
 using LazyBearTechnology;
-using TMPro;
 using UnityEngine;
 
 namespace GK2CraftMax.Patches
@@ -82,7 +82,6 @@ namespace GK2CraftMax.Patches
 
             SetupGamepadNavigation(
                 window,
-                plusButton,
                 maxButton
             );
         }
@@ -91,235 +90,82 @@ namespace GK2CraftMax.Patches
             UIBaseCraftSelectionWindow window,
             LazyButton plusButton)
         {
-            Transform parent =
-                plusButton.transform.parent;
-
-            if (parent == null)
-                return null;
-
-            Transform existing =
-                parent.Find(MaxButtonName);
-
-            if (existing != null)
-            {
-                LazyButton existingButton =
-                    existing.GetComponent<LazyButton>();
-
-                if (existingButton != null)
-                    return existingButton;
-            }
-
-            GameObject obj =
-                UnityEngine.Object.Instantiate(
-                    plusButton.gameObject,
-                    parent
+            LazyButton maxButton =
+                MaxButtonHelper.CloneButton(
+                    plusButton,
+                    MaxButtonName,
+                    () => SetMaximumCraftCount(window)
                 );
 
-            obj.name = MaxButtonName;
+            if (maxButton == null)
+                return null;
 
             /*
-             * Plus-Icon des geklonten Buttons
-             * ausblenden.
-             */
+            * Plus-Icon des geklonten Buttons
+            * ausblenden.
+            */
             Transform icon =
-                obj.transform.Find("Content/Icon");
+                maxButton.transform.Find(
+                    "Content/Icon"
+                );
 
             if (icon != null)
                 icon.gameObject.SetActive(false);
 
-            LazyButton maxButton =
-                obj.GetComponent<LazyButton>();
-
-            if (maxButton == null)
-            {
-                UnityEngine.Object.Destroy(obj);
-                return null;
-            }
-
-            /*
-             * Vanilla-Listener des geklonten
-             * Plus-Buttons entfernen.
-             */
-            maxButton.onClick.RemoveAllListeners();
-
-            /*
-             * MAX rechts neben + positionieren.
-             */
-            RectTransform plusRect =
-                plusButton.transform as RectTransform;
-
-            RectTransform maxRect =
-                obj.transform as RectTransform;
-
-            if (plusRect != null &&
-                maxRect != null)
-            {
-                maxRect.anchorMin =
-                    plusRect.anchorMin;
-
-                maxRect.anchorMax =
-                    plusRect.anchorMax;
-
-                maxRect.pivot =
-                    plusRect.pivot;
-
-                maxRect.sizeDelta =
-                    plusRect.sizeDelta;
-
-                maxRect.anchoredPosition =
-                    plusRect.anchoredPosition +
-                    new Vector2(
-                        plusRect.rect.width + 10f,
-                        0f
-                    );
-            }
-
-            /*
-             * MAX-Beschriftung erzeugen.
-             */
-            GameObject labelObject =
-                new GameObject(
-                    "GK2CraftMax_Label",
-                    typeof(RectTransform),
-                    typeof(TextMeshProUGUI)
-                );
-
-            labelObject.transform.SetParent(
-                obj.transform,
-                false
-            );
-
-            RectTransform labelRect =
-                labelObject.GetComponent<RectTransform>();
-
-            labelRect.anchorMin =
-                Vector2.zero;
-
-            labelRect.anchorMax =
-                Vector2.one;
-
-            labelRect.offsetMin =
-                Vector2.zero;
-
-            labelRect.offsetMax =
-                Vector2.zero;
-
-            labelRect.anchoredPosition =
-                new Vector2(0f, -2f);
-
-            TextMeshProUGUI label =
-                labelObject.GetComponent<TextMeshProUGUI>();
-
-            label.text = "MAX";
-
-            label.alignment =
-                TextAlignmentOptions.Center;
-
-            label.fontSize = 18f;
-
-            label.raycastTarget = false;
-
-            label.color =
-                new Color32(
-                    255,
-                    210,
-                    45,
-                    255
-                );
-
-            /*
-             * EIN gemeinsamer MAX-Pfad.
-             *
-             * Maus und Controller landen beide
-             * letztlich hier.
-             */
-            maxButton.onClick.AddListener(
-                () =>
-                {
-                    SetMaximumCraftCount(window);
-                }
+            MaxButtonHelper.PositionRightOf(
+                maxButton,
+                plusButton
             );
 
             /*
-             * WICHTIG:
-             *
-             * Kein SyncOnSelectWithButton().
-             *
-             * Den A-Button behandeln wir zentral
-             * über OnStartCraft.
-             *
-             * Dadurch kann A nicht gleichzeitig
-             * MAX und Place auslösen.
-             */
+            * Beim normalen Craft-Button gibt es
+            * kein brauchbares Textlabel.
+            */
+            MaxButtonHelper.CreateLabel(
+                maxButton,
+                "MAX"
+            );
+
             return maxButton;
         }
 
         private static void SetupGamepadNavigation(
             UIBaseCraftSelectionWindow window,
-            LazyButton plusButton,
             LazyButton maxButton)
         {
             if (!LazyInput.IsGamepadActive)
                 return;
 
             GamepadNavigationController controller =
-                Traverse.Create(window)
-                    .Property("GamepadNavigationController")
-                    .GetValue<GamepadNavigationController>();
+                GamepadNavigationHelper.GetController(window);
 
             if (controller == null)
                 return;
 
-            GamepadNavigationItem plusNav =
-                plusButton.GetComponent<GamepadNavigationItem>();
-
             GamepadNavigationItem maxNav =
                 maxButton.GetComponent<GamepadNavigationItem>();
 
-            if (plusNav == null ||
-                maxNav == null)
-            {
+            if (maxNav == null)
                 return;
-            }
 
             maxNav.Active = true;
             maxNav.enabled = true;
 
             var selectableItems =
-                Traverse.Create(controller)
-                    .Field("selectableItems")
-                    .GetValue<
-                        System.Collections.Generic
-                            .List<GamepadNavigationItem>
-                    >();
+                GamepadNavigationHelper.GetItems(controller);
 
             if (selectableItems == null)
                 return;
 
-            /*
-             * Kein ReinitItems().
-             *
-             * MAX wird direkt in die bereits
-             * initialisierte Vanilla-Liste
-             * aufgenommen.
-             */
-            if (!selectableItems.Contains(maxNav))
-            {
-                selectableItems.Add(maxNav);
-
-                maxNav.Init(
-                    selectableItems.Count - 1,
-                    controller,
-                    window.transform.lossyScale.x
-                );
-            }
+            GamepadNavigationHelper.Register(
+                controller,
+                maxNav,
+                window.transform.lossyScale.x
+            );
 
             /*
-             * Fuel verwendet Navigationsgruppe 1.
-             *
-             * Dort suchen wir das am weitesten
-             * rechts liegende Vanilla-Item.
-             */
+            * Fuel verwendet Navigationsgruppe 1.
+            */
             if (window is UIFuelCraftWindow)
             {
                 GamepadNavigationItem rightItem = null;
@@ -349,65 +195,76 @@ namespace GK2CraftMax.Patches
                     maxNav.group =
                         rightItem.group;
 
-                    rightItem.SetCustomDirectionItem(
+                    GamepadNavigationHelper.Link(
+                        rightItem,
                         GUIDirection.Right,
                         maxNav
                     );
 
-                    maxNav.SetCustomDirectionItem(
+                    GamepadNavigationHelper.Link(
+                        maxNav,
                         GUIDirection.Left,
                         rightItem
                     );
                 }
+
+                return;
             }
-            else
+
+            /*
+            * Normales Crafting:
+            * aktive Navigationsgruppe verwenden.
+            */
+            GamepadNavigationItem focused =
+                controller.FocusedItem;
+
+            if (focused == null)
+                return;
+
+            int activeGroup =
+                focused.group;
+
+            GamepadNavigationItem normalRightItem =
+                null;
+
+            foreach (
+                GamepadNavigationItem item
+                in selectableItems)
             {
-                GamepadNavigationItem focused =
-                    controller.FocusedItem;
-
-                if (focused != null)
+                if (item == null ||
+                    item == maxNav ||
+                    !item.Active ||
+                    !item.isActiveAndEnabled ||
+                    item.group != activeGroup)
                 {
-                    int activeGroup = focused.group;
+                    continue;
+                }
 
-                    GamepadNavigationItem rightItem = null;
-
-                    foreach (GamepadNavigationItem item in selectableItems)
-                    {
-                        if (item == null ||
-                            item == maxNav ||
-                            !item.Active ||
-                            !item.isActiveAndEnabled ||
-                            item.group != activeGroup)
-                        {
-                            continue;
-                        }
-
-                        if (rightItem == null ||
-                            item.Pos.x > rightItem.Pos.x)
-                        {
-                            rightItem = item;
-                        }
-                    }
-
-                    if (rightItem != null)
-                    {
-                        maxNav.group = activeGroup;
-
-                        rightItem.SetCustomDirectionItem(
-                            GUIDirection.Right,
-                            maxNav
-
-                        );
-
-                        maxNav.SetCustomDirectionItem(
-                            GUIDirection.Left,
-                            rightItem
-                        );
-                    }
+                if (normalRightItem == null ||
+                    item.Pos.x > normalRightItem.Pos.x)
+                {
+                    normalRightItem = item;
                 }
             }
-        }
 
+            if (normalRightItem == null)
+                return;
+
+            maxNav.group =
+                activeGroup;
+
+            GamepadNavigationHelper.Link(
+                normalRightItem,
+                GUIDirection.Right,
+                maxNav
+            );
+
+            GamepadNavigationHelper.Link(
+                maxNav,
+                GUIDirection.Left,
+                normalRightItem
+            );
+        }
 
         /*
          * Wird vom OnStartCraft-Patch benutzt.
@@ -429,9 +286,7 @@ namespace GK2CraftMax.Patches
             }
 
             GamepadNavigationController controller =
-                Traverse.Create(window)
-                    .Property("GamepadNavigationController")
-                    .GetValue<GamepadNavigationController>();
+                GamepadNavigationHelper.GetController(window);
 
             if (controller == null)
                 return false;
