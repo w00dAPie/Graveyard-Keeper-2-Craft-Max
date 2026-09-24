@@ -10,6 +10,10 @@ The button automatically selects the maximum number of crafts possible with the 
 - Automatically calculates the maximum craftable amount
 - Supports recipes with multiple ingredients
 - Uses the currently selected ingredient variants
+- Supports fuel crafting and respects the remaining fuel capacity
+- Adds a MAX button for Study Table Science decomposition
+- Science MAX decomposes all available selected items
+- Full mouse and controller support
 - Preserves the normal Graveyard Keeper 2 crafting and queue system
 - Designed to match the vanilla crafting UI
 
