@@ -24,8 +24,8 @@ All notable changes to **Graveyard Keeper 2 - Craft Max** are documented in this
 - MAX can now be reached using controller navigation.
 - Added controller support for both normal crafting and fuel crafting interfaces.
 - Pressing the controller confirm button while MAX is focused now:
-  - Calculates and selects the maximum craftable amount.
-  - Immediately starts crafting or placing the selected amount.
+- Calculates and selects the maximum craftable amount.
+- Immediately starts crafting or placing the selected amount.
 
 ### Improved
 - Improved controller navigation handling across different crafting UI layouts.
