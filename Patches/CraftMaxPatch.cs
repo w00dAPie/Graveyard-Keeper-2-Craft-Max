@@ -26,6 +26,16 @@ namespace GK2CraftMax.Patches
         }
     }
 
+    [HarmonyPatch(typeof(UISingleCraftWindow), "Redraw")]
+    internal static class SingleCraftWindowPatch
+    {
+        [HarmonyPostfix]
+        private static void Postfix(UISingleCraftWindow __instance)
+        {
+            CraftMaxHelper.HandleRedraw(__instance);
+        }
+    }
+
     internal static class CraftMaxHelper
     {
         internal const string MaxButtonName = "GK2CraftMax_Button";

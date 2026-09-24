@@ -2,6 +2,15 @@
 
 All notable changes to **Graveyard Keeper 2 - Craft Max** are documented in this file.
 
+## [0.4.1]
+
+#### Added
+
+- Added MAX button support for single-craft windows.
+- Added support for the Kiln.
+- Added support for the Compost Pile.
+- Other crafting stations using the same single-craft interface are now supported automatically.
+
 ## [0.4.0]
 
 ### 0.4.0
