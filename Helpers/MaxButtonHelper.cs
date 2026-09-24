@@ -10,36 +10,28 @@ namespace GK2CraftMax.Helpers
         internal static LazyButton CloneButton(
             LazyButton template,
             string objectName,
-            Action onClick)
+            Action onClick
+        )
         {
-            if (template == null ||
-                template.transform.parent == null)
+            if (template == null || template.transform.parent == null)
             {
                 return null;
             }
 
-            Transform parent =
-                template.transform.parent;
+            Transform parent = template.transform.parent;
 
-            Transform existing =
-                parent.Find(objectName);
+            Transform existing = parent.Find(objectName);
 
             if (existing != null)
             {
-                return existing
-                    .GetComponent<LazyButton>();
+                return existing.GetComponent<LazyButton>();
             }
 
-            GameObject obj =
-                UnityEngine.Object.Instantiate(
-                    template.gameObject,
-                    parent
-                );
+            GameObject obj = UnityEngine.Object.Instantiate(template.gameObject, parent);
 
             obj.name = objectName;
 
-            LazyButton button =
-                obj.GetComponent<LazyButton>();
+            LazyButton button = obj.GetComponent<LazyButton>();
 
             if (button == null)
             {
@@ -51,9 +43,7 @@ namespace GK2CraftMax.Helpers
 
             if (onClick != null)
             {
-                button.onClick.AddListener(
-                    () => onClick()
-                );
+                button.onClick.AddListener(() => onClick());
             }
 
             return button;
@@ -62,142 +52,98 @@ namespace GK2CraftMax.Helpers
         internal static void PositionRightOf(
             LazyButton button,
             LazyButton referenceButton,
-            float spacing = 10f)
+            float spacing = 10f
+        )
         {
-            if (button == null ||
-                referenceButton == null)
+            if (button == null || referenceButton == null)
             {
                 return;
             }
 
-            RectTransform referenceRect =
-                referenceButton.transform
-                    as RectTransform;
+            RectTransform referenceRect = referenceButton.transform as RectTransform;
 
-            RectTransform buttonRect =
-                button.transform
-                    as RectTransform;
+            RectTransform buttonRect = button.transform as RectTransform;
 
-            if (referenceRect == null ||
-                buttonRect == null)
+            if (referenceRect == null || buttonRect == null)
             {
                 return;
             }
 
-            buttonRect.anchorMin =
-                referenceRect.anchorMin;
+            buttonRect.anchorMin = referenceRect.anchorMin;
 
-            buttonRect.anchorMax =
-                referenceRect.anchorMax;
+            buttonRect.anchorMax = referenceRect.anchorMax;
 
-            buttonRect.pivot =
-                referenceRect.pivot;
+            buttonRect.pivot = referenceRect.pivot;
 
-            buttonRect.sizeDelta =
-                referenceRect.sizeDelta;
+            buttonRect.sizeDelta = referenceRect.sizeDelta;
 
             buttonRect.anchoredPosition =
-                referenceRect.anchoredPosition +
-                new Vector2(
-                    referenceRect.rect.width + spacing,
-                    0f
-                );
+                referenceRect.anchoredPosition
+                + new Vector2(referenceRect.rect.width + spacing, 0f);
         }
 
-        internal static GamepadNavigationItem
-            EnsureNavigationItem(
-                LazyButton button)
+        internal static GamepadNavigationItem EnsureNavigationItem(LazyButton button)
         {
             if (button == null)
                 return null;
 
-            GamepadNavigationItem nav =
-                button.GetComponent<
-                    GamepadNavigationItem>();
+            GamepadNavigationItem nav = button.GetComponent<GamepadNavigationItem>();
 
             if (nav == null)
             {
-                nav =
-                    button.gameObject
-                        .AddComponent<
-                            GamepadNavigationItem>();
+                nav = button.gameObject.AddComponent<GamepadNavigationItem>();
             }
 
             return nav;
         }
 
-        internal static void SetExistingLabel(
-            LazyButton button,
-            string text)
+        internal static void SetExistingLabel(LazyButton button, string text)
         {
             if (button == null)
                 return;
 
-            TextMeshProUGUI label =
-                button.GetComponentInChildren<
-                    TextMeshProUGUI>(true);
+            TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
 
             if (label != null)
                 label.text = text;
         }
 
-        internal static void CreateLabel(
-            LazyButton button,
-            string text)
+        internal static void CreateLabel(LazyButton button, string text)
         {
             if (button == null)
                 return;
 
-            Transform existing =
-                button.transform.Find(
-                    "GK2CraftMax_Label"
-                );
+            Transform existing = button.transform.Find("GK2CraftMax_Label");
 
             if (existing != null)
                 return;
 
-            GameObject labelObject =
-                new GameObject(
-                    "GK2CraftMax_Label",
-                    typeof(RectTransform),
-                    typeof(TextMeshProUGUI)
-                );
-
-            labelObject.transform.SetParent(
-                button.transform,
-                false
+            GameObject labelObject = new GameObject(
+                "GK2CraftMax_Label",
+                typeof(RectTransform),
+                typeof(TextMeshProUGUI)
             );
 
-            RectTransform rect =
-                labelObject.GetComponent<
-                    RectTransform>();
+            labelObject.transform.SetParent(button.transform, false);
+
+            RectTransform rect = labelObject.GetComponent<RectTransform>();
 
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            rect.anchoredPosition =
-                new Vector2(0f, -2f);
+            rect.anchoredPosition = new Vector2(0f, -2f);
 
-            TextMeshProUGUI label =
-                labelObject.GetComponent<
-                    TextMeshProUGUI>();
+            TextMeshProUGUI label = labelObject.GetComponent<TextMeshProUGUI>();
 
             label.text = text;
-            label.alignment =
-                TextAlignmentOptions.Center;
+            label.alignment = TextAlignmentOptions.Center;
 
             label.fontSize = 18f;
             label.raycastTarget = false;
 
-            label.color =
-                new Color32(
-                    255,
-                    210,
-                    45,
-                    255
-                );
+            label.color = new Color32(255, 210, 45, 255);
         }
     }
 }

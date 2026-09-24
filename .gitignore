@@ -1,5 +1,6 @@
 # Local developer configuration
 Directory.Build.props
+dotnet-tools.json
 
 # Build output
 bin/
@@ -11,6 +12,7 @@ obj/
 .idea/
 *.user
 *.suo
+
 
 # Logs / releases
 *.log

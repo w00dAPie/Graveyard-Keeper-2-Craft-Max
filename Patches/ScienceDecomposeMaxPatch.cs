@@ -9,51 +9,44 @@ namespace GK2CraftMax.Patches
     [HarmonyPatch(typeof(UIResourceBasedCraftWindow), "Redraw")]
     internal static class ScienceDecomposeMaxPatch
     {
-        private const string MaxButtonName =
-            "GK2CraftMax_ScienceMaxButton";
+        private const string MaxButtonName = "GK2CraftMax_ScienceMaxButton";
 
-        private static readonly MethodInfo OnStartSurveyMethod =
-            AccessTools.Method(
-                typeof(UIResourceBasedCraftWindowData),
-                "OnStartSurvey"
-            );
+        private static readonly MethodInfo OnStartSurveyMethod = AccessTools.Method(
+            typeof(UIResourceBasedCraftWindowData),
+            "OnStartSurvey"
+        );
 
         [HarmonyPostfix]
-        private static void Postfix(
-            UIResourceBasedCraftWindow __instance)
+        private static void Postfix(UIResourceBasedCraftWindow __instance)
         {
             if (__instance == null)
                 return;
 
-            UIResourceBasedCraftWindowData data =
-                Traverse.Create(__instance)
-                    .Field("data")
-                    .GetValue<UIResourceBasedCraftWindowData>();
+            UIResourceBasedCraftWindowData data = Traverse
+                .Create(__instance)
+                .Field("data")
+                .GetValue<UIResourceBasedCraftWindowData>();
 
-            LazyButton craftButton =
-                Traverse.Create(__instance)
-                    .Field("craftBtn")
-                    .GetValue<LazyButton>();
+            LazyButton craftButton = Traverse
+                .Create(__instance)
+                .Field("craftBtn")
+                .GetValue<LazyButton>();
 
             if (data == null || craftButton == null)
                 return;
 
-            SurveyDef surveyDef =
-                Traverse.Create(data)
-                    .Field("currentSurveyDef")
-                    .GetValue<SurveyDef>();
+            SurveyDef surveyDef = Traverse
+                .Create(data)
+                .Field("currentSurveyDef")
+                .GetValue<SurveyDef>();
 
             bool showMax =
-                data.SelectedItem != null &&
-                !data.SelectedItem.IsEmpty &&
-                surveyDef != null &&
-                surveyDef.isScienceFuelCraft;
+                data.SelectedItem != null
+                && !data.SelectedItem.IsEmpty
+                && surveyDef != null
+                && surveyDef.isScienceFuelCraft;
 
-            LazyButton maxButton =
-                GetOrCreateMaxButton(
-                    __instance,
-                    craftButton
-                );
+            LazyButton maxButton = GetOrCreateMaxButton(__instance, craftButton);
 
             if (maxButton == null)
                 return;
@@ -63,87 +56,68 @@ namespace GK2CraftMax.Patches
             if (!showMax)
                 return;
 
-            maxButton.interactable =
-                data.CanStartCraft();
+            maxButton.interactable = data.CanStartCraft();
 
             if (LazyInput.IsGamepadActive)
             {
-                SetupGamepadNavigation(
-                    __instance,
-                    maxButton
-                );
+                SetupGamepadNavigation(__instance, maxButton);
             }
-
         }
 
         private static LazyButton GetOrCreateMaxButton(
             UIResourceBasedCraftWindow window,
-            LazyButton craftButton)
+            LazyButton craftButton
+        )
         {
-            LazyButton maxButton =
-                MaxButtonHelper.CloneButton(
-                    craftButton,
-                    MaxButtonName,
-                    () => DecomposeMaximum(window)
-                );
+            LazyButton maxButton = MaxButtonHelper.CloneButton(
+                craftButton,
+                MaxButtonName,
+                () => DecomposeMaximum(window)
+            );
 
             if (maxButton == null)
                 return null;
 
-            MaxButtonHelper.PositionRightOf(
-                maxButton,
-                craftButton
-            );
+            MaxButtonHelper.PositionRightOf(maxButton, craftButton);
 
-            MaxButtonHelper.SetExistingLabel(
-                maxButton,
-                "MAX"
-            );
+            MaxButtonHelper.SetExistingLabel(maxButton, "MAX");
 
-            MaxButtonHelper.EnsureNavigationItem(
-                maxButton
-            );
+            MaxButtonHelper.EnsureNavigationItem(maxButton);
 
             return maxButton;
         }
 
-        private static void DecomposeMaximum(
-            UIResourceBasedCraftWindow window)
+        private static void DecomposeMaximum(UIResourceBasedCraftWindow window)
         {
             /*
              * MAX ist ausschließlich eine Aktion des
              * vom Spieler geöffneten Survey-Fensters.
              */
-            if (window == null ||
-                MainGame.PlayerController == null ||
-                MainGame.PlayerData == null)
+            if (window == null || MainGame.PlayerController == null || MainGame.PlayerData == null)
             {
                 return;
             }
 
-            UIResourceBasedCraftWindowData data =
-                Traverse.Create(window)
-                    .Field("data")
-                    .GetValue<UIResourceBasedCraftWindowData>();
+            UIResourceBasedCraftWindowData data = Traverse
+                .Create(window)
+                .Field("data")
+                .GetValue<UIResourceBasedCraftWindowData>();
 
-            if (data == null ||
-                data.SelectedItem == null ||
-                data.SelectedItem.IsEmpty)
+            if (data == null || data.SelectedItem == null || data.SelectedItem.IsEmpty)
             {
                 return;
             }
 
-            SurveyDef surveyDef =
-                Traverse.Create(data)
-                    .Field("currentSurveyDef")
-                    .GetValue<SurveyDef>();
+            SurveyDef surveyDef = Traverse
+                .Create(data)
+                .Field("currentSurveyDef")
+                .GetValue<SurveyDef>();
 
             /*
              * Normale Surveys niemals über MAX
              * verarbeiten.
              */
-            if (surveyDef == null ||
-                !surveyDef.isScienceFuelCraft)
+            if (surveyDef == null || !surveyDef.isScienceFuelCraft)
             {
                 return;
             }
@@ -155,19 +129,13 @@ namespace GK2CraftMax.Patches
 
             int safety = 999;
 
-            while (data.CanStartCraft() &&
-                   safety-- > 0)
+            while (data.CanStartCraft() && safety-- > 0)
             {
-                int before =
-                    data.MainIngredientCount;
+                int before = data.MainIngredientCount;
 
-                OnStartSurveyMethod.Invoke(
-                    data,
-                    null
-                );
+                OnStartSurveyMethod.Invoke(data, null);
 
-                int after =
-                    data.MainIngredientCount;
+                int after = data.MainIngredientCount;
 
                 /*
                  * Vanilla muss mindestens ein Item
@@ -179,9 +147,9 @@ namespace GK2CraftMax.Patches
                 if (after >= before)
                 {
                     Debug.LogWarning(
-                        "[CraftMax] Science MAX stopped: " +
-                        $"item count did not decrease " +
-                        $"({before} -> {after})."
+                        "[CraftMax] Science MAX stopped: "
+                            + $"item count did not decrease "
+                            + $"({before} -> {after})."
                     );
 
                     break;
@@ -191,8 +159,7 @@ namespace GK2CraftMax.Patches
                  * OnUpdateData() entfernt SelectedItem,
                  * sobald davon nichts mehr vorhanden ist.
                  */
-                if (data.SelectedItem == null ||
-                    data.SelectedItem.IsEmpty)
+                if (data.SelectedItem == null || data.SelectedItem.IsEmpty)
                 {
                     break;
                 }
@@ -201,35 +168,30 @@ namespace GK2CraftMax.Patches
 
         private static void SetupGamepadNavigation(
             UIResourceBasedCraftWindow window,
-            LazyButton maxButton)
+            LazyButton maxButton
+        )
         {
             if (window == null || maxButton == null)
                 return;
 
-            UIItemCell mainIngredient =
-                Traverse.Create(window)
-                    .Field("mainIngredient")
-                    .GetValue<UIItemCell>();
+            UIItemCell mainIngredient = Traverse
+                .Create(window)
+                .Field("mainIngredient")
+                .GetValue<UIItemCell>();
 
             if (mainIngredient == null)
                 return;
 
-            GamepadNavigationController controller =
-                GamepadNavigationHelper
-                    .GetController(window);
+            GamepadNavigationController controller = GamepadNavigationHelper.GetController(window);
 
             if (controller == null)
                 return;
 
-            GamepadNavigationItem ingredientNav =
-                mainIngredient.GamepadNavigationItem;
+            GamepadNavigationItem ingredientNav = mainIngredient.GamepadNavigationItem;
 
-            GamepadNavigationItem maxNav =
-                MaxButtonHelper
-                    .EnsureNavigationItem(maxButton);
+            GamepadNavigationItem maxNav = MaxButtonHelper.EnsureNavigationItem(maxButton);
 
-            if (ingredientNav == null ||
-                maxNav == null)
+            if (ingredientNav == null || maxNav == null)
             {
                 return;
             }
@@ -238,34 +200,20 @@ namespace GK2CraftMax.Patches
             maxNav.enabled = true;
             maxNav.group = ingredientNav.group;
 
-            GamepadNavigationHelper
-                .RegisterAndReinit(
-                    controller,
-                    window.transform.lossyScale.x,
-                    ingredientNav,
-                    maxNav
-                );
-
-            GamepadNavigationHelper.Link(
+            GamepadNavigationHelper.RegisterAndReinit(
+                controller,
+                window.transform.lossyScale.x,
                 ingredientNav,
-                GUIDirection.Down,
                 maxNav
             );
 
-            GamepadNavigationHelper.Link(
-                maxNav,
-                GUIDirection.Up,
-                ingredientNav
-            );
+            GamepadNavigationHelper.Link(ingredientNav, GUIDirection.Down, maxNav);
 
-            GamepadNavigationHelper.BindButtonPress(
-                maxNav,
-                maxButton
-            );
+            GamepadNavigationHelper.Link(maxNav, GUIDirection.Up, ingredientNav);
 
-            controller.SetFocusedItem(
-                ingredientNav
-            );
+            GamepadNavigationHelper.BindButtonPress(maxNav, maxButton);
+
+            controller.SetFocusedItem(ingredientNav);
         }
     }
 }
