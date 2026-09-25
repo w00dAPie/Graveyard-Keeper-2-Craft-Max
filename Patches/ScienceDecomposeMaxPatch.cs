@@ -10,6 +10,31 @@ namespace GK2CraftMax.Patches
     internal static class ScienceDecomposeMaxPatch
     {
         private const string MaxButtonName = "GK2CraftMax_ScienceMaxButton";
+        private static readonly AccessTools.FieldRef<
+            UIResourceBasedCraftWindow,
+            UIResourceBasedCraftWindowData
+        > ReadData = AccessTools.FieldRefAccess<
+            UIResourceBasedCraftWindow,
+            UIResourceBasedCraftWindowData
+        >("data");
+        private static readonly AccessTools.FieldRef<
+            UIResourceBasedCraftWindow,
+            LazyButton
+        > ReadCraftButton = AccessTools.FieldRefAccess<UIResourceBasedCraftWindow, LazyButton>(
+            "craftBtn"
+        );
+        private static readonly AccessTools.FieldRef<
+            UIResourceBasedCraftWindowData,
+            SurveyDef
+        > ReadSurvey = AccessTools.FieldRefAccess<UIResourceBasedCraftWindowData, SurveyDef>(
+            "currentSurveyDef"
+        );
+        private static readonly AccessTools.FieldRef<
+            UIResourceBasedCraftWindow,
+            UIItemCell
+        > ReadIngredient = AccessTools.FieldRefAccess<UIResourceBasedCraftWindow, UIItemCell>(
+            "mainIngredient"
+        );
 
         private static readonly MethodInfo OnStartSurveyMethod = AccessTools.Method(
             typeof(UIResourceBasedCraftWindowData),
@@ -22,23 +47,14 @@ namespace GK2CraftMax.Patches
             if (__instance == null)
                 return;
 
-            UIResourceBasedCraftWindowData data = Traverse
-                .Create(__instance)
-                .Field("data")
-                .GetValue<UIResourceBasedCraftWindowData>();
+            UIResourceBasedCraftWindowData data = ReadData(__instance);
 
-            LazyButton craftButton = Traverse
-                .Create(__instance)
-                .Field("craftBtn")
-                .GetValue<LazyButton>();
+            LazyButton craftButton = ReadCraftButton(__instance);
 
             if (data == null || craftButton == null)
                 return;
 
-            SurveyDef surveyDef = Traverse
-                .Create(data)
-                .Field("currentSurveyDef")
-                .GetValue<SurveyDef>();
+            SurveyDef surveyDef = ReadSurvey(data);
 
             bool showMax =
                 data.SelectedItem != null
@@ -46,15 +62,23 @@ namespace GK2CraftMax.Patches
                 && surveyDef != null
                 && surveyDef.isScienceFuelCraft;
 
+            if (!showMax)
+            {
+                LazyButton existing = MaxButtonState
+                    .For(__instance)
+                    .Resolve(craftButton, MaxButtonName);
+                if (existing != null && existing.gameObject.activeSelf)
+                    existing.gameObject.SetActive(false);
+                return;
+            }
+
             LazyButton maxButton = GetOrCreateMaxButton(__instance, craftButton);
 
             if (maxButton == null)
                 return;
 
-            maxButton.gameObject.SetActive(showMax);
-
-            if (!showMax)
-                return;
+            if (!maxButton.gameObject.activeSelf)
+                maxButton.gameObject.SetActive(true);
 
             maxButton.interactable = data.CanStartCraft();
 
@@ -69,22 +93,33 @@ namespace GK2CraftMax.Patches
             LazyButton craftButton
         )
         {
-            LazyButton maxButton = MaxButtonHelper.CloneButton(
-                craftButton,
-                MaxButtonName,
-                () => DecomposeMaximum(window)
-            );
+            MaxButtonState state = MaxButtonState.For(window);
+            LazyButton maxButton = state.Resolve(craftButton, MaxButtonName);
+            if (maxButton == null)
+            {
+                maxButton = MaxButtonHelper.CloneButton(craftButton, MaxButtonName);
+                if (maxButton != null)
+                    BindMaximumClick(window, maxButton);
+                state.Button = maxButton;
+            }
 
             if (maxButton == null)
                 return null;
 
             MaxButtonHelper.PositionRightOf(maxButton, craftButton);
 
-            MaxButtonHelper.SetExistingLabel(maxButton, "MAX");
-
-            MaxButtonHelper.EnsureNavigationItem(maxButton);
+            if (!state.Initialized || state.Label == null)
+                state.Label = MaxButtonHelper.SetExistingLabel(maxButton, "MAX");
+            if (state.Navigation == null)
+                state.Navigation = MaxButtonHelper.EnsureNavigationItem(maxButton);
+            state.Initialized = true;
 
             return maxButton;
+        }
+
+        private static void BindMaximumClick(UIResourceBasedCraftWindow window, LazyButton button)
+        {
+            button.onClick.AddListener(() => DecomposeMaximum(window));
         }
 
         private static void DecomposeMaximum(UIResourceBasedCraftWindow window)
@@ -98,20 +133,14 @@ namespace GK2CraftMax.Patches
                 return;
             }
 
-            UIResourceBasedCraftWindowData data = Traverse
-                .Create(window)
-                .Field("data")
-                .GetValue<UIResourceBasedCraftWindowData>();
+            UIResourceBasedCraftWindowData data = ReadData(window);
 
             if (data == null || data.SelectedItem == null || data.SelectedItem.IsEmpty)
             {
                 return;
             }
 
-            SurveyDef surveyDef = Traverse
-                .Create(data)
-                .Field("currentSurveyDef")
-                .GetValue<SurveyDef>();
+            SurveyDef surveyDef = ReadSurvey(data);
 
             /*
              * Normale Surveys niemals über MAX
@@ -174,10 +203,7 @@ namespace GK2CraftMax.Patches
             if (window == null || maxButton == null)
                 return;
 
-            UIItemCell mainIngredient = Traverse
-                .Create(window)
-                .Field("mainIngredient")
-                .GetValue<UIItemCell>();
+            UIItemCell mainIngredient = ReadIngredient(window);
 
             if (mainIngredient == null)
                 return;
@@ -189,7 +215,10 @@ namespace GK2CraftMax.Patches
 
             GamepadNavigationItem ingredientNav = mainIngredient.GamepadNavigationItem;
 
-            GamepadNavigationItem maxNav = MaxButtonHelper.EnsureNavigationItem(maxButton);
+            MaxButtonState state = MaxButtonState.For(window);
+            if (state.Navigation == null)
+                state.Navigation = MaxButtonHelper.EnsureNavigationItem(maxButton);
+            GamepadNavigationItem maxNav = state.Navigation;
 
             if (ingredientNav == null || maxNav == null)
             {

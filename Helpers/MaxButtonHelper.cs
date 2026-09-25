@@ -1,4 +1,3 @@
-using System;
 using LazyBearTechnology;
 using TMPro;
 using UnityEngine;
@@ -7,11 +6,7 @@ namespace GK2CraftMax.Helpers
 {
     internal static class MaxButtonHelper
     {
-        internal static LazyButton CloneButton(
-            LazyButton template,
-            string objectName,
-            Action onClick
-        )
+        internal static LazyButton CloneButton(LazyButton template, string objectName)
         {
             if (template == null || template.transform.parent == null)
             {
@@ -41,11 +36,6 @@ namespace GK2CraftMax.Helpers
 
             button.onClick.RemoveAllListeners();
 
-            if (onClick != null)
-            {
-                button.onClick.AddListener(() => onClick());
-            }
-
             return button;
         }
 
@@ -69,17 +59,23 @@ namespace GK2CraftMax.Helpers
                 return;
             }
 
-            buttonRect.anchorMin = referenceRect.anchorMin;
+            if (!buttonRect.anchorMin.Equals(referenceRect.anchorMin))
+                buttonRect.anchorMin = referenceRect.anchorMin;
 
-            buttonRect.anchorMax = referenceRect.anchorMax;
+            if (!buttonRect.anchorMax.Equals(referenceRect.anchorMax))
+                buttonRect.anchorMax = referenceRect.anchorMax;
 
-            buttonRect.pivot = referenceRect.pivot;
+            if (!buttonRect.pivot.Equals(referenceRect.pivot))
+                buttonRect.pivot = referenceRect.pivot;
 
-            buttonRect.sizeDelta = referenceRect.sizeDelta;
+            if (!buttonRect.sizeDelta.Equals(referenceRect.sizeDelta))
+                buttonRect.sizeDelta = referenceRect.sizeDelta;
 
-            buttonRect.anchoredPosition =
+            Vector2 position =
                 referenceRect.anchoredPosition
                 + new Vector2(referenceRect.rect.width + spacing, 0f);
+            if (!buttonRect.anchoredPosition.Equals(position))
+                buttonRect.anchoredPosition = position;
         }
 
         internal static GamepadNavigationItem EnsureNavigationItem(LazyButton button)
@@ -97,26 +93,27 @@ namespace GK2CraftMax.Helpers
             return nav;
         }
 
-        internal static void SetExistingLabel(LazyButton button, string text)
+        internal static TMP_Text SetExistingLabel(LazyButton button, string text)
         {
             if (button == null)
-                return;
+                return null;
 
             TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
 
             if (label != null)
                 label.text = text;
+            return label;
         }
 
-        internal static void CreateLabel(LazyButton button, string text)
+        internal static TMP_Text CreateLabel(LazyButton button, string text)
         {
             if (button == null)
-                return;
+                return null;
 
             Transform existing = button.transform.Find("GK2CraftMax_Label");
 
             if (existing != null)
-                return;
+                return existing.GetComponent<TMP_Text>();
 
             GameObject labelObject = new GameObject(
                 "GK2CraftMax_Label",
@@ -144,6 +141,7 @@ namespace GK2CraftMax.Helpers
             label.raycastTarget = false;
 
             label.color = new Color32(255, 210, 45, 255);
+            return label;
         }
     }
 }

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.2 - 2026-09-25
+
+### Changed
+
+- Reduced repeated reflection work during crafting window redraws.
+- Reduced unnecessary callback allocations when MAX buttons already exist.
+- Improved reuse of MAX button UI references.
+- Reduced repeated UI hierarchy work during crafting window updates.
+- Improved controller navigation setup efficiency while preserving existing navigation behavior.
+
+### Performance
+
+- Reduced unnecessary work performed during repeated crafting UI redraws.
+
 All notable changes to **Graveyard Keeper 2 - Craft Max** are documented in this file.
 
 ## [0.4.2]

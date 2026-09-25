@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using HarmonyLib;
 using LazyBearTechnology;
 using UnityEngine;
@@ -8,16 +9,43 @@ namespace GK2CraftMax.Helpers
     internal static class CraftMaxHelper
     {
         internal const string MaxButtonName = "GK2CraftMax_Button";
+        private static readonly AccessTools.FieldRef<
+            UIBaseCraftSelectionWindow,
+            UIBaseCraftSelectionWindowData
+        > ReadData = AccessTools.FieldRefAccess<
+            UIBaseCraftSelectionWindow,
+            UIBaseCraftSelectionWindowData
+        >("data");
+        private static readonly AccessTools.FieldRef<
+            UIBaseCraftSelectionWindow,
+            LazyButton
+        > ReadPlusButton = AccessTools.FieldRefAccess<UIBaseCraftSelectionWindow, LazyButton>(
+            "plusCraftButton"
+        );
+        private static readonly AccessTools.FieldRef<
+            UIBaseCraftSelectionWindow,
+            LazyButton
+        > ReadStartButton = AccessTools.FieldRefAccess<UIBaseCraftSelectionWindow, LazyButton>(
+            "startCraftButton"
+        );
+
+        // Invoke retains virtual dispatch to SingleCraft/Fuel overrides.
+        private static readonly MethodInfo StartCraft = AccessTools.Method(
+            typeof(UIBaseCraftSelectionWindow),
+            "OnStartCraftPressed"
+        );
+        private static readonly MethodInfo ChangeCraftCount = AccessTools.Method(
+            typeof(UIBaseCraftSelectionWindow),
+            "ChangeCraftCount",
+            new[] { typeof(int) }
+        );
 
         internal static void HandleRedraw(UIBaseCraftSelectionWindow window)
         {
             if (window == null)
                 return;
 
-            UIBaseCraftSelectionWindowData data = Traverse
-                .Create(window)
-                .Field("data")
-                .GetValue<UIBaseCraftSelectionWindowData>();
+            UIBaseCraftSelectionWindowData data = ReadData(window);
 
             if (data == null || data.CraftDefinition == null)
             {
@@ -37,10 +65,7 @@ namespace GK2CraftMax.Helpers
                 return;
             }
 
-            LazyButton plusButton = Traverse
-                .Create(window)
-                .Field("plusCraftButton")
-                .GetValue<LazyButton>();
+            LazyButton plusButton = ReadPlusButton(window);
 
             if (plusButton == null)
                 return;
@@ -50,9 +75,19 @@ namespace GK2CraftMax.Helpers
             if (maxButton == null)
                 return;
 
-            maxButton.gameObject.SetActive(true);
+            if (!maxButton.gameObject.activeSelf)
+                maxButton.gameObject.SetActive(true);
 
-            SetupGamepadNavigation(window, maxButton);
+            MaxButtonState state = MaxButtonState.For(window);
+            try
+            {
+                SetupGamepadNavigation(window, maxButton, state);
+            }
+            finally
+            {
+                // Keep capacity, not references to a previous window hierarchy.
+                state.CraftCells.Clear();
+            }
         }
 
         private static LazyButton GetOrCreateMaxButton(
@@ -60,11 +95,15 @@ namespace GK2CraftMax.Helpers
             LazyButton plusButton
         )
         {
-            LazyButton maxButton = MaxButtonHelper.CloneButton(
-                plusButton,
-                MaxButtonName,
-                () => SetMaximumCraftCount(window)
-            );
+            MaxButtonState state = MaxButtonState.For(window);
+            LazyButton maxButton = state.Resolve(plusButton, MaxButtonName);
+            if (maxButton == null)
+            {
+                maxButton = MaxButtonHelper.CloneButton(plusButton, MaxButtonName);
+                if (maxButton != null)
+                    BindMaximumClick(window, maxButton);
+                state.Button = maxButton;
+            }
 
             if (maxButton == null)
                 return null;
@@ -73,10 +112,12 @@ namespace GK2CraftMax.Helpers
              * Plus-Icon des geklonten Buttons
              * ausblenden.
              */
-            Transform icon = maxButton.transform.Find("Content/Icon");
-
-            if (icon != null)
-                icon.gameObject.SetActive(false);
+            if (!state.Initialized)
+            {
+                state.Icon = maxButton.transform.Find("Content/Icon");
+                if (state.Icon != null && state.Icon.gameObject.activeSelf)
+                    state.Icon.gameObject.SetActive(false);
+            }
 
             MaxButtonHelper.PositionRightOf(maxButton, plusButton);
 
@@ -84,14 +125,23 @@ namespace GK2CraftMax.Helpers
              * Beim normalen Craft-Button gibt es
              * kein brauchbares Textlabel.
              */
-            MaxButtonHelper.CreateLabel(maxButton, "MAX");
+            if (!state.Initialized || state.Label == null)
+                state.Label = MaxButtonHelper.CreateLabel(maxButton, "MAX");
+            state.Initialized = true;
 
             return maxButton;
         }
 
+        private static void BindMaximumClick(UIBaseCraftSelectionWindow window, LazyButton button)
+        {
+            // This capturing delegate is allocated only when a button is created.
+            button.onClick.AddListener(() => SetMaximumCraftCount(window));
+        }
+
         private static void SetupGamepadNavigation(
             UIBaseCraftSelectionWindow window,
-            LazyButton maxButton
+            LazyButton maxButton,
+            MaxButtonState state
         )
         {
             if (!LazyInput.IsGamepadActive)
@@ -102,7 +152,9 @@ namespace GK2CraftMax.Helpers
             if (controller == null)
                 return;
 
-            GamepadNavigationItem maxNav = maxButton.GetComponent<GamepadNavigationItem>();
+            if (state.Navigation == null)
+                state.Navigation = maxButton.GetComponent<GamepadNavigationItem>();
+            GamepadNavigationItem maxNav = state.Navigation;
 
             if (maxNav == null)
                 return;
@@ -129,9 +181,8 @@ namespace GK2CraftMax.Helpers
                 GamepadNavigationItem leftIngredient = null;
                 GamepadNavigationItem rightIngredient = null;
 
-                UICraftItemCell[] craftItemCells = window.GetComponentsInChildren<UICraftItemCell>(
-                    true
-                );
+                var craftItemCells = state.CraftCells;
+                window.GetComponentsInChildren(true, craftItemCells);
 
                 foreach (UICraftItemCell cell in craftItemCells)
                 {
@@ -238,8 +289,8 @@ namespace GK2CraftMax.Helpers
             GamepadNavigationItem leftNormalIngredient = null;
             GamepadNavigationItem rightNormalIngredient = null;
 
-            UICraftItemCell[] normalCraftItemCells =
-                window.GetComponentsInChildren<UICraftItemCell>(true);
+            var normalCraftItemCells = state.CraftCells;
+            window.GetComponentsInChildren(true, normalCraftItemCells);
 
             foreach (UICraftItemCell cell in normalCraftItemCells)
             {
@@ -377,14 +428,11 @@ namespace GK2CraftMax.Helpers
              */
             maxButton.onClick.Invoke();
 
-            LazyButton startCraftButton = Traverse
-                .Create(window)
-                .Field("startCraftButton")
-                .GetValue<LazyButton>();
+            LazyButton startCraftButton = ReadStartButton(window);
 
             if (startCraftButton != null && startCraftButton.interactable)
             {
-                Traverse.Create(window).Method("OnStartCraftPressed").GetValue();
+                StartCraft.Invoke(window, null);
             }
 
             return true;
@@ -392,10 +440,7 @@ namespace GK2CraftMax.Helpers
 
         private static void SetMaximumCraftCount(UIBaseCraftSelectionWindow window)
         {
-            UIBaseCraftSelectionWindowData data = Traverse
-                .Create(window)
-                .Field("data")
-                .GetValue<UIBaseCraftSelectionWindowData>();
+            UIBaseCraftSelectionWindowData data = ReadData(window);
 
             if (data == null)
                 return;
@@ -504,7 +549,7 @@ namespace GK2CraftMax.Helpers
              * Normales Crafting bzw. vorhandene
              * Fuel-Queue über Vanilla.
              */
-            Traverse.Create(window).Method("ChangeCraftCount", delta).GetValue();
+            ChangeCraftCount.Invoke(window, new object[] { delta });
         }
 
         private static void SetMaxButtonActive(UIBaseCraftSelectionWindow window, bool active)
@@ -512,19 +557,16 @@ namespace GK2CraftMax.Helpers
             if (window == null)
                 return;
 
-            LazyButton plusButton = Traverse
-                .Create(window)
-                .Field("plusCraftButton")
-                .GetValue<LazyButton>();
+            LazyButton plusButton = ReadPlusButton(window);
 
             if (plusButton == null || plusButton.transform.parent == null)
             {
                 return;
             }
 
-            Transform existing = plusButton.transform.parent.Find(MaxButtonName);
+            LazyButton existing = MaxButtonState.For(window).Resolve(plusButton, MaxButtonName);
 
-            if (existing != null)
+            if (existing != null && existing.gameObject.activeSelf != active)
             {
                 existing.gameObject.SetActive(active);
             }

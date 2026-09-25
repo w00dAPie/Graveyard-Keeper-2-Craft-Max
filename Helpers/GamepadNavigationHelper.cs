@@ -1,20 +1,58 @@
 using System.Collections.Generic;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using LazyBearTechnology;
+using UnityEngine;
+using UnityEngine.Events;
 
 namespace GK2CraftMax.Helpers
 {
     internal static class GamepadNavigationHelper
     {
-        internal static GamepadNavigationController GetController(object window)
+        private static readonly AccessTools.FieldRef<
+            GamepadNavigationController,
+            List<GamepadNavigationItem>
+        > ReadItems = AccessTools.FieldRefAccess<
+            GamepadNavigationController,
+            List<GamepadNavigationItem>
+        >("selectableItems");
+        private static readonly ConditionalWeakTable<LazyButton, ButtonPress> PressCallbacks =
+            new();
+
+        private static class ControllerAccessor<T>
+        {
+            internal static readonly MethodInfo Getter = AccessTools.PropertyGetter(
+                typeof(T),
+                "GamepadNavigationController"
+            );
+        }
+
+        private sealed class ButtonPress
+        {
+            private readonly LazyButton button;
+            internal readonly UnityAction Callback;
+
+            internal ButtonPress(LazyButton button)
+            {
+                this.button = button;
+                Callback = Press;
+            }
+
+            private void Press()
+            {
+                if (button != null && button.interactable)
+                    button.onClick.Invoke();
+            }
+        }
+
+        internal static GamepadNavigationController GetController<T>(T window)
+            where T : Object
         {
             if (window == null)
                 return null;
 
-            return Traverse
-                .Create(window)
-                .Property("GamepadNavigationController")
-                .GetValue<GamepadNavigationController>();
+            return (GamepadNavigationController)ControllerAccessor<T>.Getter.Invoke(window, null);
         }
 
         internal static List<GamepadNavigationItem> GetItems(GamepadNavigationController controller)
@@ -22,10 +60,7 @@ namespace GK2CraftMax.Helpers
             if (controller == null)
                 return null;
 
-            return Traverse
-                .Create(controller)
-                .Field("selectableItems")
-                .GetValue<List<GamepadNavigationItem>>();
+            return ReadItems(controller);
         }
 
         internal static void Register(
@@ -54,7 +89,8 @@ namespace GK2CraftMax.Helpers
         internal static void RegisterAndReinit(
             GamepadNavigationController controller,
             float guiScale,
-            params GamepadNavigationItem[] newItems
+            GamepadNavigationItem first,
+            GamepadNavigationItem second
         )
         {
             List<GamepadNavigationItem> items = GetItems(controller);
@@ -62,13 +98,10 @@ namespace GK2CraftMax.Helpers
             if (items == null)
                 return;
 
-            foreach (GamepadNavigationItem item in newItems)
-            {
-                if (item != null && !items.Contains(item))
-                {
-                    items.Add(item);
-                }
-            }
+            if (first != null && !items.Contains(first))
+                items.Add(first);
+            if (second != null && !items.Contains(second))
+                items.Add(second);
 
             for (int i = 0; i < items.Count; i++)
             {
@@ -96,17 +129,13 @@ namespace GK2CraftMax.Helpers
             if (nav == null || button == null)
                 return;
 
-            nav.SetCallbacks(
-                null,
-                null,
-                () =>
-                {
-                    if (button.interactable)
-                    {
-                        button.onClick.Invoke();
-                    }
-                }
-            );
+            if (!PressCallbacks.TryGetValue(button, out ButtonPress press))
+            {
+                press = new ButtonPress(button);
+                PressCallbacks.Add(button, press);
+            }
+            // The game may rebuild navigation callbacks; preserve rebinding and focus.
+            nav.SetCallbacks(null, null, press.Callback);
         }
     }
 }
