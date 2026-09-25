@@ -2,6 +2,15 @@
 
 All notable changes to **Graveyard Keeper 2 - Craft Max** are documented in this file.
 
+## [0.4.2]
+
+- Improved controller navigation for the MAX button.
+- Added cyclic controller navigation between the crafted item, ingredients and MAX button.
+- Added controller support for the MAX button at the Kiln.
+- Added controller support for the MAX button at the Compost Pile.
+- Improved controller navigation for fuel crafting, including the Firewood Shed.
+- Refactored Craft Max helper logic for cleaner internal structure.
+
 ## [0.4.1]
 
 #### Added
