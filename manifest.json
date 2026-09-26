@@ -1,0 +1,9 @@
+{
+  "name": "GK2CraftMax",
+  "version_number": "0.4.2",
+  "website_url": "https://github.com/w00dAPie/Graveyard-Keeper-2-Craft-Max",
+  "description": "Adds convenient maximum crafting controls to Graveyard Keeper 2 crafting interfaces.",
+  "dependencies": [
+    "BepInEx-BepInExPack-5.4.2305"
+  ]
+}

@@ -25,8 +25,7 @@ The button automatically selects the maximum number of crafts possible with the 
 ## Installation
 
 1. Install BepInEx 5.4.23.5.
-2. Download the latest release.
-3. Extract the archive into your Graveyard Keeper 2 installation directory.
+2. Extract the archive into your Graveyard Keeper 2 installation directory.
 
 The DLL should end up here:
 
@@ -44,8 +43,5 @@ Create a local `Directory.Build.props` based on `Directory.Build.props.example` 
 
 Then run:
 
-`dotnet build -c Release`
-
-## License
-
-MIT
+```powershell
+dotnet build -c Release
