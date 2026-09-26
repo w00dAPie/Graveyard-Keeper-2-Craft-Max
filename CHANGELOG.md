@@ -4,6 +4,20 @@
 
 All notable changes to **Graveyard Keeper 2 - Craft Max** are documented in this file.
 
+## 0.4.3
+
+### Added
+
+- Added controller shortcuts for changing the crafting quantity by 10.
+- LB decreases the selected crafting quantity by 10.
+- RB increases the selected crafting quantity by 10.
+- Quantity changes use the existing crafting limits and remain within valid minimum and maximum values.
+
+### Changed
+
+- Improved controller-based quantity adjustment for faster crafting setup.
+- Existing MAX button behavior and controller navigation remain unchanged.
+
 ## 0.4.2
 
 ### Changed

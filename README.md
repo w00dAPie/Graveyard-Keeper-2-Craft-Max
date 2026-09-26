@@ -14,6 +14,7 @@ The button automatically selects the maximum number of crafts possible with the 
 - Adds a MAX button for Study Table Science decomposition
 - Science MAX decomposes all available selected items
 - Full mouse and controller support
+- LB/RB decrease/increase the crafting quantity by 10 while the crafted result is focused
 - Preserves the normal Graveyard Keeper 2 crafting and queue system
 - Designed to match the vanilla crafting UI
 
@@ -36,6 +37,8 @@ The DLL should end up here:
 Open a crafting window and press **MAX**.
 
 The selected craft quantity will be set to the maximum amount possible with the currently available ingredients.
+
+With a controller, focus the crafted result and press **LB** to subtract 10 or **RB** to add 10. Each press changes the quantity once; increases respect available ingredients and remaining fuel capacity. This works in normal, fuel, and single-craft windows (including the Kiln and Compost Pile). Existing fuel queues are edited immediately, matching the vanilla quantity controls. Study Table Science decomposition has no quantity selector and keeps its existing MAX behavior.
 
 ## Building
 

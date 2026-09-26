@@ -27,3 +27,6 @@ Desktop.ini
 *.zip icon-original.png
 icon-original.png
 *.zip
+
+#test
+/tests/
