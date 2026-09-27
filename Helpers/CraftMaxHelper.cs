@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using LazyBearTechnology;
@@ -37,7 +38,7 @@ namespace GK2CraftMax.Helpers
         private static readonly MethodInfo ChangeCraftCount = AccessTools.Method(
             typeof(UIBaseCraftSelectionWindow),
             "ChangeCraftCount",
-            new[] { typeof(int) }
+            [typeof(int)]
         );
 
         internal static void HandleRedraw(UIBaseCraftSelectionWindow window)
@@ -144,8 +145,23 @@ namespace GK2CraftMax.Helpers
             MaxButtonState state
         )
         {
-            if (!LazyInput.IsGamepadActive)
+            if (window == null || maxButton == null || state == null)
                 return;
+
+            /*
+             * Alten CraftMax-Splice entfernen.
+             *
+             * Vanilla besitzt danach wieder seine originale Navigation.
+             */
+            state.Insertion.Restore();
+
+            if (!LazyInput.IsGamepadActive)
+            {
+                if (state.Navigation != null)
+                    state.Navigation.Active = false;
+
+                return;
+            }
 
             GamepadNavigationController controller = GamepadNavigationHelper.GetController(window);
 
@@ -153,16 +169,18 @@ namespace GK2CraftMax.Helpers
                 return;
 
             if (state.Navigation == null)
-                state.Navigation = maxButton.GetComponent<GamepadNavigationItem>();
+                state.Navigation = MaxButtonHelper.EnsureNavigationItem(maxButton);
+
             GamepadNavigationItem maxNav = state.Navigation;
 
             if (maxNav == null)
                 return;
 
-            maxNav.Active = true;
-            maxNav.enabled = true;
+            maxNav.Active = false;
 
-            var selectableItems = GamepadNavigationHelper.GetItems(controller);
+            List<GamepadNavigationItem> selectableItems = GamepadNavigationHelper.GetItems(
+                controller
+            );
 
             if (selectableItems == null)
                 return;
@@ -170,216 +188,117 @@ namespace GK2CraftMax.Helpers
             GamepadNavigationHelper.Register(controller, maxNav, window.transform.lossyScale.x);
 
             /*
-             * Fuel Crafting:
+             * Alle sichtbaren Craft-Item-Zellen bestimmen.
              *
-             * Result -> Zutaten -> MAX -> Result
+             * Wichtig:
+             * KEIN group == focused.group Filter mehr.
+             *
+             * Gerade solche Annahmen können bei speziellen Fenstern
+             * wie dem Distillation Cube Slots 2/3 herausfiltern.
              */
-            if (window is UIFuelCraftWindow)
+            List<UICraftItemCell> craftItemCells = state.CraftCells;
+
+            window.GetComponentsInChildren(true, craftItemCells);
+
+            GamepadNavigationItem leftIngredient = null;
+            GamepadNavigationItem rightIngredient = null;
+
+            foreach (UICraftItemCell cell in craftItemCells)
             {
-                const int fuelGroup = 1;
-
-                GamepadNavigationItem leftIngredient = null;
-                GamepadNavigationItem rightIngredient = null;
-
-                var craftItemCells = state.CraftCells;
-                window.GetComponentsInChildren(true, craftItemCells);
-
-                foreach (UICraftItemCell cell in craftItemCells)
+                if (cell == null || !cell.gameObject.activeInHierarchy)
                 {
-                    if (cell == null || !cell.gameObject.activeInHierarchy)
-                        continue;
-
-                    GamepadNavigationItem ingredientNav = cell.GamepadNavigationItem;
-
-                    if (
-                        ingredientNav == null
-                        || !ingredientNav.Active
-                        || !ingredientNav.isActiveAndEnabled
-                        || ingredientNav.group != fuelGroup
-                    )
-                    {
-                        continue;
-                    }
-
-                    if (leftIngredient == null || ingredientNav.Pos.x < leftIngredient.Pos.x)
-                    {
-                        leftIngredient = ingredientNav;
-                    }
-
-                    if (rightIngredient == null || ingredientNav.Pos.x > rightIngredient.Pos.x)
-                    {
-                        rightIngredient = ingredientNav;
-                    }
+                    continue;
                 }
 
-                if (leftIngredient == null || rightIngredient == null)
+                GamepadNavigationItem nav = cell.GamepadNavigationItem;
+
+                if (!GamepadNavigationHelper.IsUsable(nav) || !selectableItems.Contains(nav))
                 {
-                    return;
+                    continue;
                 }
 
-                GamepadNavigationItem craftResult = null;
-
-                foreach (GamepadNavigationItem item in selectableItems)
+                if (leftIngredient == null || nav.Pos.x < leftIngredient.Pos.x)
                 {
-                    if (
-                        item == null
-                        || item == maxNav
-                        || item == leftIngredient
-                        || item == rightIngredient
-                        || !item.Active
-                        || !item.isActiveAndEnabled
-                    )
-                    {
-                        continue;
-                    }
-
-                    /*
-                     * Beim Fuel-Fenster kann das Result
-                     * in einer anderen Navigationsgruppe liegen.
-                     */
-                    if (
-                        item.Pos.x < leftIngredient.Pos.x
-                        && Mathf.Abs(item.Pos.y - leftIngredient.Pos.y) < 10f
-                    )
-                    {
-                        if (craftResult == null || item.Pos.x > craftResult.Pos.x)
-                        {
-                            craftResult = item;
-                        }
-                    }
+                    leftIngredient = nav;
                 }
 
-                if (craftResult == null)
+                if (rightIngredient == null || nav.Pos.x > rightIngredient.Pos.x)
                 {
-                    return;
+                    rightIngredient = nav;
                 }
+            }
 
-                maxNav.group = fuelGroup;
-
-                GamepadNavigationHelper.Link(rightIngredient, GUIDirection.Right, maxNav);
-
-                GamepadNavigationHelper.Link(maxNav, GUIDirection.Right, craftResult);
-
-                GamepadNavigationHelper.Link(craftResult, GUIDirection.Left, maxNav);
-
-                GamepadNavigationHelper.Link(maxNav, GUIDirection.Left, rightIngredient);
-
+            if (leftIngredient == null || rightIngredient == null)
+            {
+                maxNav.Active = false;
                 return;
             }
 
             /*
-             * Normales Crafting + Single Craft:
+             * Craft/Result liegt bei diesen Fenstern links vor der
+             * ersten Zutatenzelle.
              *
-             * Workbench
-             * Kiln
-             * Compost Pile
+             * Wir wählen das nächstgelegene aktive Navigationselement
+             * links auf derselben horizontalen Reihe.
              */
-            if (!(window is UICraftSelectionWindow) && !(window is UISingleCraftWindow))
-            {
-                return;
-            }
-
-            GamepadNavigationItem focused = controller.FocusedItem;
-
-            if (focused == null)
-                return;
-
-            int activeGroup = focused.group;
-
-            GamepadNavigationItem leftNormalIngredient = null;
-            GamepadNavigationItem rightNormalIngredient = null;
-
-            var normalCraftItemCells = state.CraftCells;
-            window.GetComponentsInChildren(true, normalCraftItemCells);
-
-            foreach (UICraftItemCell cell in normalCraftItemCells)
-            {
-                if (cell == null || !cell.gameObject.activeInHierarchy)
-                    continue;
-
-                GamepadNavigationItem ingredientNav = cell.GamepadNavigationItem;
-
-                if (
-                    ingredientNav == null
-                    || !ingredientNav.Active
-                    || !ingredientNav.isActiveAndEnabled
-                    || ingredientNav.group != activeGroup
-                )
-                {
-                    continue;
-                }
-
-                if (
-                    leftNormalIngredient == null
-                    || ingredientNav.Pos.x < leftNormalIngredient.Pos.x
-                )
-                {
-                    leftNormalIngredient = ingredientNav;
-                }
-
-                if (
-                    rightNormalIngredient == null
-                    || ingredientNav.Pos.x > rightNormalIngredient.Pos.x
-                )
-                {
-                    rightNormalIngredient = ingredientNav;
-                }
-            }
-
-            if (leftNormalIngredient == null || rightNormalIngredient == null)
-            {
-                return;
-            }
-
-            maxNav.group = activeGroup;
-
-            GamepadNavigationItem normalCraftResult = null;
+            GamepadNavigationItem craftResult = null;
 
             foreach (GamepadNavigationItem item in selectableItems)
             {
                 if (
                     item == null
                     || item == maxNav
-                    || item == leftNormalIngredient
-                    || item == rightNormalIngredient
-                    || !item.Active
-                    || !item.isActiveAndEnabled
-                    || item.group != activeGroup
+                    || item == leftIngredient
+                    || item == rightIngredient
+                    || !GamepadNavigationHelper.IsUsable(item)
                 )
                 {
                     continue;
                 }
 
                 if (
-                    item.Pos.x < leftNormalIngredient.Pos.x
-                    && Mathf.Abs(item.Pos.y - leftNormalIngredient.Pos.y) < 10f
+                    item.Pos.x < leftIngredient.Pos.x
+                    && Mathf.Abs(item.Pos.y - leftIngredient.Pos.y) < 10f
                 )
                 {
-                    if (normalCraftResult == null || item.Pos.x > normalCraftResult.Pos.x)
+                    /*
+                     * Den nächsten Kandidaten links von Zutat 1 wählen.
+                     */
+                    if (craftResult == null || item.Pos.x > craftResult.Pos.x)
                     {
-                        normalCraftResult = item;
+                        craftResult = item;
                     }
                 }
             }
 
-            if (normalCraftResult == null)
+            if (craftResult == null)
             {
+                maxNav.Active = false;
                 return;
             }
 
             /*
-             * Ring schließen:
+             * Vanilla besitzt weiterhin:
              *
-             * Result -> Zutat 1 -> ... -> letzte Zutat
-             * -> MAX -> Result
+             * Craft -> Zutat1 -> Zutat2 -> Zutat3
+             *
+             * Wir ergänzen ausschließlich:
+             *
+             * Zutat3 -> MAX -> Craft
+             *
+             * und rückwärts:
+             *
+             * Craft -> MAX -> Zutat3
              */
-            GamepadNavigationHelper.Link(rightNormalIngredient, GUIDirection.Right, maxNav);
+            state.Insertion.AttachRing(controller, craftResult, rightIngredient, maxNav);
 
-            GamepadNavigationHelper.Link(maxNav, GUIDirection.Right, normalCraftResult);
+            if (!state.Insertion.IsAttached)
+            {
+                maxNav.Active = false;
+                return;
+            }
 
-            GamepadNavigationHelper.Link(normalCraftResult, GUIDirection.Left, maxNav);
-
-            GamepadNavigationHelper.Link(maxNav, GUIDirection.Left, rightNormalIngredient);
+            GamepadNavigationHelper.BindButtonPress(maxNav, maxButton);
         }
 
         /*
@@ -549,7 +468,7 @@ namespace GK2CraftMax.Helpers
              * Normales Crafting bzw. vorhandene
              * Fuel-Queue über Vanilla.
              */
-            ChangeCraftCount.Invoke(window, new object[] { delta });
+            ChangeCraftCount.Invoke(window, [delta]);
         }
 
         private static void SetMaxButtonActive(UIBaseCraftSelectionWindow window, bool active)
@@ -560,11 +479,26 @@ namespace GK2CraftMax.Helpers
             LazyButton plusButton = ReadPlusButton(window);
 
             if (plusButton == null || plusButton.transform.parent == null)
-            {
                 return;
-            }
 
-            LazyButton existing = MaxButtonState.For(window).Resolve(plusButton, MaxButtonName);
+            MaxButtonState state = MaxButtonState.For(window);
+
+            LazyButton existing = state.Resolve(plusButton, MaxButtonName);
+
+            if (!active)
+            {
+                /*
+                 * MAX verschwindet:
+                 * zuerst ausschließlich unsere Navigationsänderung entfernen.
+                 */
+                state.Insertion.Restore();
+
+                if (state.Navigation != null)
+                    state.Navigation.Active = false;
+
+                state.Context = null;
+                state.CraftCells.Clear();
+            }
 
             if (existing != null && existing.gameObject.activeSelf != active)
             {

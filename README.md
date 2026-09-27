@@ -6,17 +6,35 @@ The button automatically selects the maximum number of crafts possible with the 
 
 ## Features
 
-- Adds a MAX button next to the vanilla craft quantity controls
-- Automatically calculates the maximum craftable amount
-- Supports recipes with multiple ingredients
-- Uses the currently selected ingredient variants
-- Supports fuel crafting and respects the remaining fuel capacity
-- Adds a MAX button for Study Table Science decomposition
-- Science MAX decomposes all available selected items
-- Full mouse and controller support
-- LB/RB decrease/increase the crafting quantity by 10 while the crafted result is focused
-- Preserves the normal Graveyard Keeper 2 crafting and queue system
-- Designed to match the vanilla crafting UI
+- Adds a MAX button to supported crafting interfaces.
+- Automatically calculates the maximum immediately craftable amount for the MAX action.
+- Adds controller navigation for the MAX button.
+- Adds LB/RB shortcuts for changing crafting quantities by 10.
+- Allows larger crafting queues even when the required
+
+## Controller Support
+
+Craft Max includes full controller support.
+
+- Navigate to the MAX button using the normal crafting controls.
+- Press the normal confirm button to use MAX.
+- LB decreases the crafting quantity by 10.
+- RB increases the crafting quantity by 10.
+- Hold LB/RB for repeated changes:
+  - repeat starts after 0.5 seconds
+  - quantity changes every 0.2 seconds
+- Craft quantities can be increased beyond the amount currently supported by available ingredients.
+  The game will process available crafts normally and keep the remaining amount in the queue.
+
+### Item Transfers
+
+The same fast quantity controls are available when moving items between inventories or containers:
+
+- LB: -10
+- RB: +10
+- Hold LB/RB for repeated changes.
+
+The normal game controls remain available.
 
 ## Requirements
 

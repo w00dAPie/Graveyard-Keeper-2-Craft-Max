@@ -34,7 +34,7 @@ namespace GK2CraftMax.Helpers
         private static readonly MethodInfo ChangeCount = AccessTools.Method(
             typeof(UIBaseCraftSelectionWindow),
             "ChangeCraftCount",
-            new[] { typeof(int) }
+            [typeof(int)]
         );
 
         internal static void Register(
@@ -42,12 +42,26 @@ namespace GK2CraftMax.Helpers
             Dictionary<GameKey, Func<bool>> callbacks
         )
         {
-            // These actions are LB/RB in the shipped bindings. Keep them local to the
-            // quantity dialog; the parent crafting window uses the same shoulders.
+            if (window == null || callbacks == null)
+                return;
+
             if (!callbacks.ContainsKey(GameKey.PrevTab))
-                callbacks.Add(GameKey.PrevTab, () => OnPressed(window, false));
+                callbacks.Add(GameKey.PrevTab, () => TryChange(window, false));
+
             if (!callbacks.ContainsKey(GameKey.NextTab))
-                callbacks.Add(GameKey.NextTab, () => OnPressed(window, true));
+                callbacks.Add(GameKey.NextTab, () => TryChange(window, true));
+
+            /*
+            * Ein Repeater pro gepooltem Craft-Fenster.
+            */
+            CraftQuantityHoldRepeater repeater = window.GetComponent<CraftQuantityHoldRepeater>();
+
+            if (repeater == null)
+            {
+                repeater = window.gameObject.AddComponent<CraftQuantityHoldRepeater>();
+            }
+
+            repeater.Initialize(window);
         }
 
         internal static void AddTips(UIBaseCraftSelectionWindow window, List<LazyGameKeyTip> tips)
@@ -67,7 +81,7 @@ namespace GK2CraftMax.Helpers
                 );
         }
 
-        private static bool OnPressed(UIBaseCraftSelectionWindow window, bool increase)
+        internal static bool TryChange(UIBaseCraftSelectionWindow window, bool increase)
         {
             if (
                 window == null
@@ -122,15 +136,15 @@ namespace GK2CraftMax.Helpers
             if (window is UIFuelCraftWindow && target != null)
                 maximum += otherCount; // Vanilla caps the edited entry, not the queue total.
 
-            if (increase)
-                maximum = GetMaximum(data, target, other, maximum, window is UIFuelCraftWindow);
+            if (window is UIFuelCraftWindow && target != null)
+                maximum += otherCount;
 
             int delta = CraftQuantityStep.GetDelta(current, minimum, maximum, increase);
             if (delta != 0)
             {
                 // Reflection preserves virtual dispatch, including immediate fuel queue edits.
                 // This also refreshes counters and button states without rebuilding navigation.
-                ChangeCount.Invoke(window, new object[] { delta });
+                ChangeCount.Invoke(window, [delta]);
             }
             return true;
         }

@@ -1,8 +1,26 @@
 # Changelog
 
-# Changelog
-
 All notable changes to **Graveyard Keeper 2 - Craft Max** are documented in this file.
+
+## 0.5.0
+
+### Added
+- Added LB/RB shortcuts for changing item transfer amounts by 10.
+- Added hold-to-repeat support for LB/RB quantity shortcuts.
+  - Repeating starts after 0.5 seconds.
+  - The amount then changes by 10 every 0.2 seconds.
+- Added LB/RB -10/+10 gamepad hints to the item transfer window.
+
+### Changed
+- Crafting LB/RB shortcuts are no longer limited by currently available ingredients.
+  - Larger craft amounts can now be selected and queued.
+  - The game still handles available materials and queue processing normally.
+- LB/RB hold-to-repeat is now available while changing crafting quantities.
+
+### Fixed
+- Fixed controller navigation in crafting interfaces with multiple ingredient slots.
+- Fixed navigation issues in interfaces such as the Distillation Cube.
+- MAX is now inserted into the crafting navigation loop without skipping native ingredient slots.
 
 ## 0.4.3
 

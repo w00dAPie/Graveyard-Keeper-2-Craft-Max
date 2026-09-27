@@ -1,6 +1,7 @@
 # Local developer configuration
 Directory.Build.props
 dotnet-tools.json
+icon-original.png
 
 # Build output
 bin/
@@ -24,9 +25,12 @@ Thumbs.db
 Desktop.ini
 
 #zip
-*.zip icon-original.png
-icon-original.png
 *.zip
 
 #test
 /tests/
+
+#thunderstore
+.thunderstore-token
+publish.ps1
+thunderstore.toml

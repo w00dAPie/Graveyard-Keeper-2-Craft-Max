@@ -1,6 +1,5 @@
 using GK2CraftMax.Helpers;
 using HarmonyLib;
-using LazyBearTechnology;
 
 namespace GK2CraftMax.Patches
 {

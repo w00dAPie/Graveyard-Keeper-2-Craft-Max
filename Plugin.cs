@@ -8,7 +8,7 @@ namespace GK2CraftMax
     {
         private Harmony _harmony;
 
-        public const string PluginVersion = "0.4.2";
+        public const string PluginVersion = "0.5.0";
 
         private void Awake()
         {
